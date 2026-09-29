@@ -6,10 +6,22 @@ const { chromium } = require('playwright');
 const path = require('path');
 const fs = require('fs');
 const DIST = path.join(__dirname, '..', 'dist');
-const URL = 'file://' + path.join(DIST, 'spanish-app.html');
+// The app is tested as a website (dist/site served over http), the way it runs on
+// a phone. Opening it as a local file made saved data unreliable across reloads.
+let URL;
 let fails = 0;
 const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++; };
 (async () => {
+  const appServer = require('http').createServer((q, r) => {
+    let f = decodeURIComponent(q.url.split('?')[0].split('#')[0]); if (f.endsWith('/')) f += 'index.html';
+    fs.readFile(path.join(DIST, 'site', f), (err, data) => {
+      if (err) { r.writeHead(404); return r.end(); }
+      const type = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.png': 'image/png', '.svg': 'image/svg+xml', '.webmanifest': 'application/manifest+json' }[path.extname(f)] || 'application/octet-stream';
+      r.writeHead(200, { 'Content-Type': type }); r.end(data);
+    });
+  });
+  await new Promise(res => appServer.listen(0, '127.0.0.1', res));
+  URL = 'http://127.0.0.1:' + appServer.address().port + '/index.html';
   const browser = await chromium.launch();
   // Most tests start signed in as "Sam" — the first profile, which owns the bare storage keys.
   const newCtx = async (seed = true) => {
@@ -621,16 +633,11 @@ const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++
   await pl.click('#menuLogout');
   ok(await pl.isVisible('#login') && !(await pl.isVisible('#main')) && (await pl.textContent('#login')).includes('¿Quién va a practicar?'), 'log out shows who-is-practising screen');
   ok(await pl.evaluate(() => JSON.parse(localStorage.getItem('profiles')).active) === null, 'log out forgets the signed-in profile');
-  // "Next launch": re-run the start-up against what's saved. (A real reload here is
-  // unreliable only in this test browser when many windows run at once.)
-  const pickerOnLaunch = await pl.evaluate(async () => {
-    await Profiles.start(async () => {});
-    return !document.getElementById('login').hidden && document.getElementById('main').hidden && !!document.querySelector('.profile-pick');
-  });
-  ok(pickerOnLaunch, 'after logging out, the next launch does not sign straight in');
   await pl.reload(); await appReady(pl);
-  if (await pl.isVisible('.profile-pick')) await pl.click('.profile-pick:has-text("Sam")');
-  await pl.waitForFunction(() => Profiles.current() && typeof state !== 'undefined' && Object.keys(state.progress).length === 1, null, { timeout: 5000 }).catch(() => {});
+  await pl.waitForSelector('.profile-pick');
+  ok(!(await pl.isVisible('#main')), 'after logging out, the next launch does not sign straight in');
+  await pl.click('.profile-pick:has-text("Sam")');
+  await pl.waitForFunction(() => Profiles.current() && Object.keys(state.progress).length === 1);
   ok(await pl.isVisible('#main') && await pl.evaluate(() => Object.keys(state.progress).length) === 1, 'signing back in keeps the progress');
   await lctx.close();
 
@@ -929,6 +936,7 @@ const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++
   }
 
   await browser.close();
+  appServer.close();
   console.log(fails ? fails + ' FAILED' : 'ALL PASSED');
   process.exitCode = fails ? 1 : 0;
 })();
