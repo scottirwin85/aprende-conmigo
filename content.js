@@ -193,6 +193,9 @@ const ICONS = {
   house: '<path d="M8 24L24 10L40 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M13 21V40H35V21" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/><rect x="21" y="28" width="6" height="12" fill="currentColor"/>',
   chili: '<path d="M18 10C18 10 14 14 16 22C18 30 26 34 32 30C38 26 36 16 30 12" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M18 10C16 8 14 7 12 8" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>',
 };
+// The sound button's speaker, drawn to match the icons above (24x24 grid, currentColor).
+const SPEAKER_SVG = '<svg viewBox="0 0 24 24" class="speaker-svg" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+  '<path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" fill="currentColor"/><path d="M15.5 9a4 4 0 0 1 0 6"/><path d="M18 6.5a7.5 7.5 0 0 1 0 11"/></svg>';
 function iconSvg(key, cls){
   return '<svg viewBox="0 0 48 48" class="' + (cls || 'card-icon-svg') + '">' + (ICONS[key] || ICONS.star) + '</svg>';
 }

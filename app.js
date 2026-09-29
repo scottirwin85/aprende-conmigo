@@ -302,7 +302,7 @@ function renderGreeting(){
     '<button class="greeting-btn" id="greetingBtn" title="Hear it">' +
       iconSvg(g.icon, 'greeting-icon') +
       '<span class="greeting-text">' +
-        '<span class="greeting-es">' + esc(withName(g.es)) + ' <span class="greeting-ask">' + g.ask + '</span> <span aria-hidden="true">🔊</span></span>' +
+        '<span class="greeting-es">' + esc(withName(g.es)) + ' <span class="greeting-ask">' + g.ask + '</span> <span class="greeting-speaker">' + SPEAKER_SVG + '</span></span>' +
         '<span class="greeting-en">' + g.en + ' \u2014 ' + g.askEn + '</span>' +
         '<span class="greeting-status">' + esc(status) + '</span>' +
       '</span>' +
@@ -547,14 +547,14 @@ function renderFlash(){
         'aria-pressed="' + state.flipped + '" aria-label="Flip card">' +
       '<div class="face face-front">' +
         '<div class="due-badge">' + dueLabel(card._id) + '</div>' +
-        '<button class="sound-btn" id="soundBtn" title="Hear it" aria-label="Hear it">🔊</button>' +
+        '<button class="sound-btn" id="soundBtn" title="Hear it" aria-label="Hear it">' + SPEAKER_SVG + '</button>' +
         iconSvg(card.icon) +
         '<div class="card-word">' + esc(card.es) + '</div>' +
         '<div class="card-sub" style="opacity:0.75;font-style:italic;">' + esc(card.pron) + '</div>' +
         '<div class="card-hint">tap to reveal</div>' +
       '</div>' +
       '<div class="face face-back">' +
-        '<button class="sound-btn" id="soundBtnBack" title="Hear it" aria-label="Hear it">🔊</button>' +
+        '<button class="sound-btn" id="soundBtnBack" title="Hear it" aria-label="Hear it">' + SPEAKER_SVG + '</button>' +
         iconSvg(card.icon) +
         '<div class="card-word" style="font-size:20px;">' + esc(card.en) + '</div>' +
         '<div class="card-sub">' + esc(card.es) + ' · ' + esc(card.pron) + '</div>' +
@@ -630,7 +630,7 @@ function renderQuiz(){
     '<div class="quiz-prompt">What does this mean? <span style="opacity:0.6;">(' + dueLabel(card._id) + ')</span></div>' +
     iconSvg(card.icon, 'quiz-icon-svg') +
     '<div class="quiz-word">' + esc(card.es) +
-      ' <button class="sound-btn" id="quizSoundBtn" title="Hear it" aria-label="Hear it" style="position:static;display:inline-flex;vertical-align:middle;margin-left:8px;background:var(--teal);border-color:var(--teal);width:30px;height:30px;">🔊</button>' +
+      ' <button class="sound-btn quiz-sound-btn" id="quizSoundBtn" title="Hear it" aria-label="Hear it">' + SPEAKER_SVG + '</button>' +
     '</div>' +
     '<div class="card-sub" style="opacity:0.55;font-style:italic;margin-top:2px;">' + esc(card.pron) + '</div>' +
     '<div class="options" id="optsWrap"></div>';

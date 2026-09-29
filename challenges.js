@@ -29,7 +29,7 @@ const Challenges = (function () {
   const DAILY = [
     { id: 'correct10', group: 'correct', target: 10, text: () => 'Get 10 answers right', value: d => d.correct },
     { id: 'correct20', group: 'correct', target: 20, text: () => 'Get 20 answers right', value: d => d.correct },
-    { id: 'listen5', target: 5, text: () => 'Tap 🔊 to hear 5 phrases', value: d => d.listened },
+    { id: 'listen5', target: 5, text: () => 'Tap the speaker to hear 5 phrases', value: d => d.listened },
     { id: 'flip10', target: 10, text: () => 'Flip 10 flashcards', value: d => d.flipped },
     { id: 'run5', target: 5, text: () => 'Get 5 quiz answers right in a row', value: d => d.bestRun },
     { id: 'decks2', target: 2, text: () => 'Practise two different decks', value: d => Object.keys(d.deckAnswers).length },

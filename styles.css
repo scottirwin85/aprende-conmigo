@@ -62,7 +62,11 @@ h1{ font-family:var(--font-display); font-weight:600; font-size:34px; line-heigh
 .card-sub{ font-size:14px; opacity:0.85; margin-top:10px; max-width:32ch; }
 .card-hint{ position:absolute; bottom:14px; font-size:11px; opacity:0.6; }
 .due-badge{ position:absolute; top:14px; left:14px; font-size:10.5px; background:rgba(255,255,255,0.15); border:1px solid rgba(255,255,255,0.3); border-radius:20px; padding:3px 9px; }
-.sound-btn{ position:absolute; top:14px; right:14px; width:34px; height:34px; border-radius:50%; border:1px solid rgba(255,255,255,0.4); background:rgba(255,255,255,0.12); color:#fff; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:15px; }
+.sound-btn{ position:absolute; top:14px; right:14px; width:34px; height:34px; border-radius:50%; border:1px solid rgba(255,255,255,0.4); background:rgba(255,255,255,0.12); color:#fff; display:flex; align-items:center; justify-content:center; cursor:pointer; padding:0; }
+.speaker-svg{ width:18px; height:18px; display:block; }
+.quiz-sound-btn{ position:static; display:inline-flex; vertical-align:middle; margin-left:8px; width:30px; height:30px; background:var(--teal); border-color:var(--teal); }
+.quiz-sound-btn .speaker-svg{ width:16px; height:16px; }
+.greeting-speaker{ display:inline-flex; vertical-align:-2px; margin-left:2px; color:var(--teal); }
 .card-controls{ display:flex; gap:10px; }
 .ctrl-btn{ flex:1; padding:13px 10px; border-radius:12px; border:1px solid var(--line); background:#fff; font-family:var(--font-body); font-weight:600; font-size:14px; cursor:pointer; color:var(--ink); }
 .ctrl-btn.primary{ background:var(--ink); color:var(--cream); border-color:var(--ink); }

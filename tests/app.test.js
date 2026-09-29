@@ -283,7 +283,7 @@ const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++
 
   const listenBefore = await pc.evaluate(() => state.stats.listenedTotal);
   await pc.click('#soundBtn'); await pc.click('.card-word');
-  ok(await pc.evaluate(() => state.stats.listenedTotal) === listenBefore + 1, 'tapping 🔊 counts as listening');
+  ok(await pc.evaluate(() => state.stats.listenedTotal) === listenBefore + 1, 'tapping the speaker counts as listening');
   ok(await pc.evaluate(() => state.stats.days[Challenges.dayKey(Date.now())].flipped) === 1, 'flipping to the back counts');
 
   const day = await pc.evaluate(() => Challenges.dailyStatus(state.stats, Date.now(), deckNames()));
