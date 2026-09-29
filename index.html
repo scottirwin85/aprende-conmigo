@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Aprende Conmigo</title>
+<!-- Home Screen / installed-app details (used when served as a website, e.g. GitHub Pages) -->
+<meta name="theme-color" content="#FBF3E7">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Aprende">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="stylesheet" href="styles.css">
+<!--HOST-BOOTSTRAP-->
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Aprende Conmigo</div>
+    <h1>Spanish, for him</h1>
+    <p class="sub">Real Mexican Spanish — starting with everyday words, leveling up into full conversational phrases, and resurfacing them over time so they stick.</p>
+  </header>
+
+  <div class="decks" id="decks"></div>
+  <div class="level-chips" id="levelChips"></div>
+
+  <div class="modes">
+    <button class="mode-btn active" data-mode="flash" id="modeFlash">Flashcards</button>
+    <button class="mode-btn" data-mode="quiz" id="modeQuiz">Quiz</button>
+  </div>
+
+  <div id="reviewBanner"></div>
+  <div class="stage" id="stage"></div>
+  <div class="streak" id="streak"></div>
+
+  <div class="sync">
+    <div class="sync-row">
+      <button class="sync-btn" id="exportBtn">Export progress</button>
+      <button class="sync-btn" id="importBtn">Import progress</button>
+    </div>
+    <div id="syncPanel"></div>
+  </div>
+</div>
+
+<script src="content.js"></script>
+<script src="storage.js"></script>
+<script src="srs.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

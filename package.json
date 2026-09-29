@@ -1,0 +1,12 @@
+{
+  "name": "aprende-conmigo",
+  "private": true,
+  "description": "Aprende Conmigo — a Spanish flashcard app with spaced repetition.",
+  "scripts": {
+    "build": "python3 build.py",
+    "test": "node tests/app.test.js"
+  },
+  "devDependencies": {
+    "playwright": "^1.47.0"
+  }
+}

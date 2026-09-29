@@ -1,0 +1,101 @@
+:root{
+  --cream: #FBF3E7;
+  --ink: #2B2320;
+  --teal: #1B6B78;
+  --teal-dark: #124d57;
+  --marigold: #E8A33D;
+  --plum: #6B2545;
+  --line: rgba(43,35,32,0.14);
+  /* No external font requests: this stack is chosen to look warm/serif and
+     clean/sans without ever hitting the network. If you want the exact
+     original Fraunces + Work Sans look while still offline, self-host the
+     .woff2 files (download once from fonts.google.com) and add @font-face
+     rules pointing at local files instead of a Google Fonts <link>. */
+  --font-display: Georgia, 'Iowan Old Style', 'Palatino Linotype', 'Book Antiqua', serif;
+  --font-body: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+}
+*{box-sizing:border-box;}
+body{
+  margin:0;
+  background:var(--cream);
+  color:var(--ink);
+  font-family:var(--font-body);
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{ max-width:520px; margin:0 auto; padding:28px 20px 60px; }
+header{ margin-bottom:22px; }
+.eyebrow{ font-size:13px; color:var(--teal-dark); font-weight:600; margin-bottom:4px; }
+h1{ font-family:var(--font-display); font-weight:600; font-size:34px; line-height:1.05; margin:0 0 6px; color:var(--ink); }
+.sub{ font-size:15px; color:rgba(43,35,32,0.65); line-height:1.5; max-width:38ch; }
+
+.decks{ display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:24px 0 8px; }
+.deck-btn{ position:relative; border:1px solid var(--line); background:#fff; border-radius:14px; padding:14px 14px 12px; text-align:left; cursor:pointer; font-family:var(--font-body); }
+.deck-btn.active{ border-color:var(--teal); background:#EFF6F5; }
+.deck-icon-svg{ width:20px; height:20px; color:var(--plum); margin-bottom:6px; display:block; }
+.deck-name{ font-weight:600; font-size:15px; margin-bottom:2px; }
+.deck-level{ font-size:11px; color:var(--teal-dark); font-weight:600; margin-bottom:2px; }
+.deck-progress{ font-size:12px; color:rgba(43,35,32,0.55); }
+.deck-bar{ height:4px; border-radius:2px; background:var(--line); margin-top:8px; overflow:hidden; }
+.deck-bar-fill{ height:100%; background:var(--teal); border-radius:2px; transition:width .3s ease; }
+.mastered-badge{ position:absolute; top:12px; right:12px; font-size:15px; }
+
+.level-chips{ display:flex; gap:8px; margin:18px 0 14px; }
+.level-chip{ flex:1; border:1px solid var(--line); background:#fff; border-radius:10px; padding:9px 6px; text-align:center; font-size:11.5px; font-weight:600; cursor:pointer; color:rgba(43,35,32,0.45); font-family:var(--font-body); }
+.level-chip.active{ border-color:var(--marigold); background:#FBF0DC; color:var(--ink); }
+.level-chip.done{ color:var(--teal-dark); }
+.level-chip.locked, .level-chip:disabled{ cursor:not-allowed; opacity:0.55; }
+
+.modes{ display:flex; gap:8px; margin:6px 0 18px; border-bottom:1px solid var(--line); }
+.mode-btn{ background:none; border:none; font-family:var(--font-body); font-size:14px; font-weight:600; padding:10px 4px 12px; color:rgba(43,35,32,0.45); cursor:pointer; border-bottom:2px solid transparent; margin-right:14px; }
+.mode-btn.active{ color:var(--ink); border-bottom-color:var(--marigold); }
+
+.review-banner{ font-size:12.5px; color:var(--plum); background:#F7ECF1; border:1px solid rgba(107,37,69,0.25); border-radius:10px; padding:9px 12px; margin-bottom:16px; line-height:1.4; }
+
+.stage{ min-height:360px; }
+.card-scene{ perspective:1200px; margin:8px 0 18px; }
+.card{ position:relative; width:100%; height:260px; transform-style:preserve-3d; transition:transform .5s cubic-bezier(.4,.2,.2,1); cursor:pointer; }
+.card.flipped{ transform:rotateY(180deg); }
+.face{ position:absolute; inset:0; backface-visibility:hidden; border-radius:20px; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:20px; text-align:center; }
+.face-front{ background:var(--teal); color:#fff; }
+.face-back{ background:var(--plum); color:#fff; transform:rotateY(180deg); }
+.card-icon-svg{ width:38px; height:38px; margin-bottom:10px; opacity:0.95; }
+.card-word{ font-family:var(--font-display); font-weight:600; font-size:28px; line-height:1.15; }
+.card-sub{ font-size:14px; opacity:0.85; margin-top:10px; max-width:32ch; }
+.card-hint{ position:absolute; bottom:14px; font-size:11px; opacity:0.6; }
+.due-badge{ position:absolute; top:14px; left:14px; font-size:10.5px; background:rgba(255,255,255,0.15); border:1px solid rgba(255,255,255,0.3); border-radius:20px; padding:3px 9px; }
+.sound-btn{ position:absolute; top:14px; right:14px; width:34px; height:34px; border-radius:50%; border:1px solid rgba(255,255,255,0.4); background:rgba(255,255,255,0.12); color:#fff; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:15px; }
+.card-controls{ display:flex; gap:10px; }
+.ctrl-btn{ flex:1; padding:13px 10px; border-radius:12px; border:1px solid var(--line); background:#fff; font-family:var(--font-body); font-weight:600; font-size:14px; cursor:pointer; color:var(--ink); }
+.ctrl-btn.primary{ background:var(--ink); color:var(--cream); border-color:var(--ink); }
+.ctrl-btn.good{ background:#EFF6F5; border-color:var(--teal); color:var(--teal-dark); }
+
+.quiz-icon-svg{ width:28px; height:28px; color:var(--teal); margin-bottom:8px; }
+.quiz-prompt{ font-size:13px; color:rgba(43,35,32,0.55); margin-bottom:6px; }
+.quiz-word{ font-family:var(--font-display); font-weight:600; font-size:26px; margin-bottom:4px; }
+.options{ display:flex; flex-direction:column; gap:10px; margin-top:18px; }
+.opt-btn{ text-align:left; padding:14px 16px; border-radius:12px; border:1px solid var(--line); background:#fff; font-family:var(--font-body); font-size:15px; cursor:pointer; color:var(--ink); }
+.opt-btn.correct{ border-color:var(--teal); background:#EFF6F5; color:var(--teal-dark); }
+.opt-btn.wrong{ border-color:var(--plum); background:#F7ECF1; color:var(--plum); }
+.quiz-next{ margin-top:18px; }
+
+.streak{ display:flex; align-items:center; gap:6px; font-size:13px; color:rgba(43,35,32,0.6); margin-top:22px; padding-top:16px; border-top:1px solid var(--line); }
+.streak b{ color:var(--ink); }
+
+.sync{ margin-top:14px; }
+.sync-row{ display:flex; gap:8px; }
+.sync-btn{ flex:1; padding:9px 8px; border-radius:10px; border:1px solid var(--line); background:#fff; font-family:var(--font-body); font-size:12px; font-weight:600; color:rgba(43,35,32,0.6); cursor:pointer; }
+.sync-panel{ margin-top:10px; }
+.sync-panel textarea{ width:100%; min-height:64px; border:1px solid var(--line); border-radius:10px; padding:8px; font-size:11px; font-family:monospace; resize:vertical; }
+.sync-panel .ctrl-btn{ margin-top:8px; }
+.sync-note{ font-size:11px; color:rgba(43,35,32,0.5); margin-top:6px; }
+
+.done{ text-align:center; padding:36px 10px; }
+.done h2{ font-family:var(--font-display); font-size:24px; margin:0 0 8px; }
+.done p{ color:rgba(43,35,32,0.6); font-size:14px; margin:0 0 20px; }
+
+.practice-banner{ font-size:12.5px; color:var(--teal-dark); background:#EFF6F5; border:1px solid rgba(27,107,120,0.25); border-radius:10px; padding:9px 12px; margin-bottom:16px; line-height:1.4; }
+.link-btn{ background:none; border:none; padding:0; font:inherit; font-weight:600; color:inherit; text-decoration:underline; cursor:pointer; }
+.quiz-note{ font-size:13px; color:rgba(43,35,32,0.65); margin-top:12px; font-style:italic; }
+.opt-btn:disabled{ cursor:default; }
+.end-btn{ width:auto; padding:12px 24px; margin:4px; }
+button:focus-visible, .card:focus-visible{ outline:3px solid var(--marigold); outline-offset:2px; }
