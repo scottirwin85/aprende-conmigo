@@ -374,6 +374,7 @@ const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++
   ok((await pp.textContent('#formError')).includes('4 digits'), 'PIN must be 4 digits');
   await pp.fill('#pinSet', ''); await pp.click('#saveProfileBtn');
   ok(await pp.isVisible('#main') && (await pp.textContent('#greeting')).includes('¡Buenos días, Sam!'), 'greeting uses the name');
+  ok((await pp.textContent('#appTitle')) === 'Spanish, for Sam', 'title is personal: "Spanish, for Sam"');
   ok(await pp.evaluate(() => state.progress['food/Repetir'].box) === 2, 'first profile keeps the existing progress');
   ok((await pp.textContent('#profileChip')).includes('Sam'), 'profile button shows the name');
   await pp.reload(); await appReady(pp);
@@ -410,6 +411,7 @@ const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++
   await pp.click('#chipBtn'); await pp.click('#menuEdit');
   await pp.fill('#nameInput', 'Samuel'); await pp.click('#saveProfileBtn');
   ok((await pp.textContent('#greeting')).includes('Samuel'), 'renaming updates the greeting');
+  ok((await pp.textContent('#appTitle')) === 'Spanish, for Samuel', 'renaming updates the title');
 
   // delete Alex via the forgotten-PIN route (two taps)
   await pp.click('#chipBtn'); await pp.click('#menuSwitch');

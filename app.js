@@ -327,6 +327,9 @@ function dueEverywhere(now){
   }, 0);
 }
 function renderGreeting(){
+  // The title is personal to whoever is signed in: "Spanish, for Sam".
+  const name = userName();
+  document.getElementById('appTitle').textContent = name ? 'Spanish, for ' + name : 'Real Mexican Spanish';
   const now = Date.now();
   const g = timeGreeting(now);
   const due = dueEverywhere(now);
