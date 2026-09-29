@@ -7,6 +7,8 @@ just as it's about to be forgotten.
 
 **Open it:** https://scottirwin85.github.io/aprende-conmigo/
 
+**How to install and use it (for anyone):** https://scottirwin85.github.io/aprende-conmigo/guide.html
+
 ## Put it on an iPhone
 
 1. Open the link above in **Safari**.

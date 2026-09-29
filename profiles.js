@@ -86,7 +86,8 @@ const Profiles = (function () {
       '<p class="login-sub">What’s your name? It’s only kept on this device, to greet you and keep your progress separate.</p>' +
       formFields(null) +
       (legacy ? '<p class="login-note">The progress already on this device will be kept in your profile.</p>' : '') +
-      '<button class="ctrl-btn primary login-btn" id="saveProfileBtn">Empezar · Start</button>');
+      '<button class="ctrl-btn primary login-btn" id="saveProfileBtn">Empezar · Start</button>' +
+      (/^https?:$/.test(location.protocol) ? '<p class="login-note"><a href="guide.html">New here? Read how the app works</a></p>' : ''));
     wireForm(null);
   }
 

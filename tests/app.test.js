@@ -898,6 +898,34 @@ const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++
     await sctx.close();
   }
 
+  { // 34. the how-to guide, published next to the app
+    const http = require('http');
+    const SITE = path.join(DIST, 'site');
+    const srv = http.createServer((q, r) => {
+      let f = decodeURIComponent(q.url.split('?')[0].split('#')[0]); if (f.endsWith('/')) f += 'index.html';
+      fs.readFile(path.join(SITE, f), (err, data) => { if (err) { r.writeHead(404); return r.end(); }
+        r.writeHead(200, { 'Content-Type': { '.html': 'text/html', '.js': 'text/javascript', '.png': 'image/png', '.svg': 'image/svg+xml' }[path.extname(f)] || 'application/octet-stream' }); r.end(data); });
+    });
+    await new Promise(res => srv.listen(0, '127.0.0.1', res));
+    const base = 'http://127.0.0.1:' + srv.address().port + '/';
+    const hctx = await newCtx(false); const ph = await hctx.newPage();
+    const missing = []; ph.on('response', r => { if (r.status() >= 400) missing.push(r.url()); });
+    await ph.goto(base + 'guide.html');
+    await ph.evaluate(() => Promise.all([...document.images].map(i => { i.loading = 'eager'; return i.complete ? 1 : new Promise(r => { i.onload = i.onerror = r; }); })));
+    const imgs = await ph.evaluate(() => [...document.images].map(i => i.naturalWidth));
+    ok(imgs.length === 8 && imgs.every(w => w > 0) && missing.length === 0, 'guide page and all its screenshots load (' + imgs.length + ' images, ' + missing.length + ' missing)');
+    const anchorsOk = await ph.evaluate(() => [...document.querySelectorAll('.toc a')].every(a => document.querySelector(a.getAttribute('href'))));
+    ok(anchorsOk, 'every contents link goes to a section');
+    await ph.click('.open-btn'); await appReady(ph);
+    ok(await ph.isVisible('#login') && !!(await ph.$('a[href="guide.html"]')), '"Open the app" works, and the welcome screen links back to the guide');
+    await ph.fill('#nameInput', 'Pat'); await ph.click('#saveProfileBtn');
+    await ph.click('#chipBtn');
+    ok(await ph.isVisible('#menuGuide'), 'menu has "How to use this app"');
+    await ph.click('#menuGuide'); await ph.waitForURL(/guide\.html$/);
+    ok((await ph.textContent('h1')) === 'How to install and use it', 'menu opens the guide');
+    await hctx.close(); srv.close();
+  }
+
   await browser.close();
   console.log(fails ? fails + ' FAILED' : 'ALL PASSED');
   process.exitCode = fails ? 1 : 0;

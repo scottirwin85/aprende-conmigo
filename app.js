@@ -1225,7 +1225,8 @@ if('serviceWorker' in navigator && /^https?:$/.test(location.protocol) && locati
     { id: 'menuProgress', label: 'Your progress', onClick: () => renderProgressPanel() },
     { id: 'menuMine', label: 'My phrases', onClick: () => renderMinePanel() },
     { id: 'menuVoice', label: 'Record phrases in your voice', onClick: () => renderVoicePanel() },
-  ]);
+  ].concat(/^https?:$/.test(location.protocol) // the guide is a page on the website, next to the app
+    ? [{ id: 'menuGuide', label: 'How to use this app', onClick: () => { location.href = 'guide.html'; } }] : []));
   // Shows the welcome / "who's practising?" / PIN screen as needed, then loads that profile.
   await Profiles.start(async () => {
     state = freshState();

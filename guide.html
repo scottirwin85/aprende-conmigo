@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Aprende Conmigo — How to use it</title>
+<meta name="description" content="How to install and use Aprende Conmigo, the Mexican Spanish flashcard app.">
+<meta name="theme-color" content="#FBF3E7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1A1614" media="(prefers-color-scheme: dark)">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<style>
+:root{
+  color-scheme: light dark;
+  --cream:#FBF3E7; --surface:#fff; --ink:#2B2320; --ink-rgb:43,35,32;
+  --teal:#1B6B78; --teal-dark:#124d57; --plum:#6B2545; --marigold:#E8A33D;
+  --tint-teal:#EFF6F5; --tint-gold:#FBF0DC; --line:rgba(var(--ink-rgb),0.14);
+  --font-display: Georgia, 'Iowan Old Style', 'Palatino Linotype', serif;
+  --font-body: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root{ --cream:#1A1614; --surface:#26201D; --ink:#F3EADF; --ink-rgb:243,234,223; --teal-dark:#86C7D1; --tint-teal:#173A3F; --tint-gold:#3D3020; }
+}
+*{ box-sizing:border-box; }
+body{ margin:0; background:var(--cream); color:var(--ink); font-family:var(--font-body); font-size:16px; line-height:1.6; -webkit-font-smoothing:antialiased; }
+.wrap{ max-width:640px; margin:0 auto; padding:28px 16px 60px; }
+.eyebrow{ font-size:13px; font-weight:600; color:var(--teal-dark); }
+h1{ font-family:var(--font-display); font-size:32px; line-height:1.15; margin:4px 0 8px; }
+h2{ font-family:var(--font-display); font-size:23px; line-height:1.25; margin:40px 0 10px; padding-top:8px; border-top:1px solid var(--line); }
+h3{ font-size:16px; margin:22px 0 6px; }
+p, li{ margin:0 0 10px; }
+ol, ul{ padding-left:22px; margin:0 0 12px; }
+a{ color:var(--teal-dark); }
+.lede{ font-size:17px; color:rgba(var(--ink-rgb),0.75); }
+.open-btn{ display:inline-block; margin:8px 0 4px; padding:12px 20px; border-radius:12px; background:var(--teal); color:#fff; font-weight:600; text-decoration:none; }
+.toc{ background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:14px 18px; margin:20px 0; }
+.toc ol{ margin:0; padding-left:20px; columns:2; column-gap:20px; }
+.toc li{ margin:0 0 4px; font-size:14.5px; break-inside:avoid; }
+@media (max-width:420px){ .toc ol{ columns:1; } }
+.tip{ background:var(--tint-teal); border-left:4px solid var(--teal); border-radius:10px; padding:10px 14px; margin:12px 0; font-size:15px; }
+.warn{ background:var(--tint-gold); border-left:4px solid var(--marigold); border-radius:10px; padding:10px 14px; margin:12px 0; font-size:15px; }
+figure{ margin:14px 0 18px; }
+figure img{ display:block; width:100%; max-width:340px; height:auto; border-radius:16px; border:1px solid var(--line); background:var(--surface); }
+figcaption{ font-size:13px; color:rgba(var(--ink-rgb),0.6); margin-top:6px; }
+.pair{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+@media (max-width:480px){ .pair{ grid-template-columns:1fr; } }
+table{ width:100%; border-collapse:collapse; margin:8px 0 14px; font-size:14.5px; background:var(--surface); border-radius:12px; overflow:hidden; }
+th, td{ text-align:left; padding:8px 10px; border-bottom:1px solid var(--line); vertical-align:top; }
+th{ font-size:13px; color:rgba(var(--ink-rgb),0.65); }
+tr:last-child td{ border-bottom:none; }
+.k{ display:inline-block; padding:1px 7px; border:1px solid var(--line); border-radius:6px; background:var(--surface); font-size:14px; font-weight:600; white-space:nowrap; }
+dt{ font-weight:600; margin-top:14px; }
+dd{ margin:4px 0 0; }
+.foot{ margin-top:40px; font-size:13px; color:rgba(var(--ink-rgb),0.55); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="eyebrow">Aprende Conmigo</div>
+  <h1>How to install and use it</h1>
+  <p class="lede">Aprende Conmigo is a free app for learning real, everyday <strong>Mexican Spanish</strong> — 330 phrases in 11 topics, from “¿Qué onda?” to meeting the in-laws. It brings each phrase back just before you’d forget it, so a few minutes a day really adds up.</p>
+  <a class="open-btn" href="./">Open the app</a>
+
+  <nav class="toc" aria-label="Contents">
+    <ol>
+      <li><a href="#install">Put it on your phone</a></li>
+      <li><a href="#start">First time you open it</a></li>
+      <li><a href="#daily">A daily session</a></li>
+      <li><a href="#flashcards">Flashcards</a></li>
+      <li><a href="#levels">Decks and levels</a></li>
+      <li><a href="#quiz">Quiz</a></li>
+      <li><a href="#difficulty">Difficulty</a></li>
+      <li><a href="#conversations">Conversations</a></li>
+      <li><a href="#challenges">Challenges and streaks</a></li>
+      <li><a href="#menu">The menu (tap your name)</a></li>
+      <li><a href="#search">Search</a></li>
+      <li><a href="#backup">Backups and new phones</a></li>
+      <li><a href="#faq">Questions and fixes</a></li>
+    </ol>
+  </nav>
+
+  <h2 id="install">1. Put it on your phone</h2>
+  <p>There’s nothing to download from an app store. You add the website to your Home Screen and it then works like an app — full screen, with its own icon, and even without a connection.</p>
+
+  <h3>iPhone or iPad</h3>
+  <ol>
+    <li>Open <strong>Safari</strong> (it must be Safari, not Chrome) and go to <a href="./">scottirwin85.github.io/aprende-conmigo</a>.</li>
+    <li>Tap the <strong>Share</strong> button — the square with an arrow pointing up (at the bottom of the screen, or top right on iPad).</li>
+    <li>Scroll down and tap <strong>Add to Home Screen</strong>, then <strong>Add</strong>.</li>
+    <li>From now on, open it from the green <strong>ñ</strong> icon called <strong>Aprende</strong>.</li>
+  </ol>
+
+  <h3>Android</h3>
+  <ol>
+    <li>Open <strong>Chrome</strong> and go to <a href="./">scottirwin85.github.io/aprende-conmigo</a>.</li>
+    <li>Tap the <span class="k">⋮</span> menu (top right) and choose <strong>Add to Home screen</strong> or <strong>Install app</strong>.</li>
+    <li>Open it from the new <strong>Aprende</strong> icon.</li>
+  </ol>
+
+  <h3>Computer</h3>
+  <p>Just open the link in any browser and bookmark it.</p>
+
+  <div class="tip"><strong>Always open it from the icon.</strong> Your progress is saved on the phone. On iPhone, the Home Screen app and Safari keep <em>separate</em> progress, so stick to the icon.</div>
+
+  <h2 id="start">2. The first time you open it</h2>
+  <div class="pair">
+    <div>
+      <p>The app asks <strong>“¡Hola! ¿Cómo te llamas?”</strong> — what’s your name? Type your first name so it can greet you.</p>
+      <p>You can also set a <strong>4-digit PIN</strong>. It’s optional: only worth it if other people use the same phone and you don’t want them opening your profile by accident.</p>
+      <p>Tap <strong>Empezar · Start</strong> and you’re in.</p>
+      <div class="tip">Several people can share one phone: each gets their own profile, progress and streak. Your name and progress never leave the phone.</div>
+    </div>
+    <figure><img src="guide/01-welcome.png" alt="The welcome screen asking for your name and an optional PIN" width="390" height="470" loading="lazy"><figcaption>The welcome screen.</figcaption></figure>
+  </div>
+
+  <h2 id="daily">3. A daily session (5–10 minutes)</h2>
+  <figure><img src="guide/02-home.png" alt="The top of the app: a greeting with your name, and the deck buttons" width="390" height="640" loading="lazy"><figcaption>The greeting changes with the time of day and tells you how many phrases are ready. Tap it to hear it.</figcaption></figure>
+  <ol>
+    <li>Open the app. The greeting says how many phrases are <strong>ready to practise</strong>.</li>
+    <li>Pick a <strong>deck</strong> (topic) — start with <em>Everyday &amp; Greetings</em>.</li>
+    <li>Go through the <strong>Flashcards</strong> until it says <strong>“All caught up”</strong>.</li>
+    <li>If you have time, do a <strong>Quiz</strong> or a <strong>Conversation</strong>.</li>
+    <li>Come back tomorrow — the phrases that need another look will be waiting.</li>
+  </ol>
+  <div class="tip"><strong>How the app decides what to show:</strong> every time you get a phrase right, it waits longer before showing it again — 10 minutes, then a day, 3 days, a week, 2 weeks, a month, 3 months. Get it wrong and it comes back sooner. That’s why “All caught up” is a good thing: you’ve done today’s work.</div>
+  <p>Want more? On the “All caught up” screen, <strong>Practice anyway</strong> lets you go through the cards again. That extra practice won’t make them come back later than they should.</p>
+
+  <h2 id="flashcards">4. Flashcards</h2>
+  <div class="pair">
+    <figure><img src="guide/03-card-front.png" alt="A flashcard showing the Spanish word Ahorita and how to say it" width="390" height="460" loading="lazy"><figcaption>Front: the Spanish, and how to say it.</figcaption></figure>
+    <figure><img src="guide/04-card-back.png" alt="The back of the card with the English meaning and a Why? note" width="390" height="560" loading="lazy"><figcaption>Back: the meaning, with Why? and Share.</figcaption></figure>
+  </div>
+  <ul>
+    <li><strong>Tap the card</strong> to flip it and see the meaning.</li>
+    <li><strong>Speaker button</strong> — hear it said by a Mexican voice.</li>
+    <li><strong>I know this</strong> — you got it. It’ll come back later.</li>
+    <li><strong>Not yet</strong> — no problem; it comes round again soon, including later in the same session.</li>
+    <li><strong>Why?</strong> — a short note on how the phrase works (for example, <em>ahorita</em> = <em>ahora</em> “now” + <em>-ita</em> “little”).</li>
+    <li><strong>Share</strong> — send the phrase to someone by message or WhatsApp.</li>
+  </ul>
+  <p>Be honest with “I know this”: the app works best when it knows what you really remember.</p>
+
+  <h2 id="levels">5. Decks and levels</h2>
+  <p>There are 11 decks: Everyday &amp; Greetings, Love &amp; Terms of Endearment, Family, Food, Numbers &amp; Time, Feelings, Around the House, Out &amp; About, Texting &amp; Slang, Meeting the Family, and Celebrations.</p>
+  <p>Each deck has three levels: <strong>Basics → Conversational → Natural &amp; Slang</strong> (or Idioms). The next level unlocks 🔒 once you know every phrase in the current one — each phrase has to be right twice, at least 10 minutes apart, so it’s really in your memory. When a whole deck is done, an <strong>All</strong> button mixes all its phrases together.</p>
+
+  <h2 id="quiz">6. Quiz</h2>
+  <figure><img src="guide/05-quiz.png" alt="A multiple-choice quiz question" width="390" height="620" loading="lazy"><figcaption>A quiz question. After you answer, it shows the right answer, its sound and a Why? note.</figcaption></figure>
+  <p>Tap <strong>Quiz</strong> for questions instead of cards. Leave <strong>Questions</strong> on <strong>Mixed</strong> and the questions get harder as you learn each phrase. Or pick one type:</p>
+  <table>
+    <tr><th>Type</th><th>What you do</th></tr>
+    <tr><td>Spanish → English</td><td>Pick what the Spanish means.</td></tr>
+    <tr><td>English → Spanish</td><td>Pick the right Spanish.</td></tr>
+    <tr><td>Listening</td><td>Hear it (no text) and pick the meaning.</td></tr>
+    <tr><td>Type it</td><td>Type the Spanish yourself. Missing accents and small typos are forgiven.</td></tr>
+    <tr><td>Fill the gap</td><td>Choose the missing word.</td></tr>
+    <tr><td>Build the phrase</td><td>Tap the words in the right order.</td></tr>
+    <tr><td>What would you say?</td><td>Read a real-life situation, pick what you’d say.</td></tr>
+    <tr><td>Say it out loud</td><td>Say it into the microphone (works on some phones only).</td></tr>
+    <tr><td>Match the pairs</td><td>A quick timed game. It doesn’t affect when phrases come back.</td></tr>
+  </table>
+  <div class="tip">No accent keys? No problem — type <em>que tal</em> for <em>¿Qué tal?</em>. The app accepts it and shows you the proper spelling.</div>
+
+  <h2 id="difficulty">7. Difficulty (Nivel)</h2>
+  <p>Above the cards, <strong>Nivel</strong> sets how hard things are. You can change it any time.</p>
+  <table>
+    <tr><th></th><th>Fácil (easy)</th><th>Normal</th><th>Difícil (hard)</th></tr>
+    <tr><td>How to say it</td><td>shown</td><td>shown</td><td>hidden until the answer</td></tr>
+    <tr><td>Choices</td><td>3</td><td>4</td><td>5</td></tr>
+    <tr><td>Audio</td><td>slower</td><td>normal</td><td>natural speed</td></tr>
+    <tr><td>Typing</td><td>very forgiving</td><td>forgives accents and a small typo</td><td>accents and spelling must be right</td></tr>
+  </table>
+  <p>Start on <strong>Fácil</strong> or <strong>Normal</strong>; move to <strong>Difícil</strong> when it feels too easy.</p>
+
+  <h2 id="conversations">8. Conversations</h2>
+  <div class="pair">
+    <div>
+      <p>The <strong>Conversations</strong> tab has short everyday dialogues for each deck, using phrases you’re learning — coming home, a phone call, ordering at a restaurant, meeting your mother-in-law…</p>
+      <ul>
+        <li>Tap a line to hear it, or <strong>Play all</strong>.</li>
+        <li><strong>Show English</strong> reveals the translations.</li>
+        <li>Try saying the <strong>Tú</strong> (you) lines out loud before you tap them.</li>
+        <li>Tap <strong>I’ve read it</strong> when you’re done.</li>
+      </ul>
+    </div>
+    <figure><img src="guide/06-conversation.png" alt="A conversation shown as a message thread" width="390" height="560" loading="lazy"><figcaption>Your lines are on the right.</figcaption></figure>
+  </div>
+
+  <h2 id="challenges">9. Challenges, streaks and achievements</h2>
+  <div class="pair">
+    <div>
+      <p>Below the cards you’ll find <strong>three new challenges every day</strong> — like “Get 20 answers right” or “Hear 5 phrases”. There are also 26 <strong>achievements</strong> to unlock (tap <em>Achievements</em> to see them).</p>
+      <p>The <strong>🔥 day streak</strong> at the bottom counts the days in a row you’ve practised. Missing a day resets it — even one card counts!</p>
+    </div>
+    <figure><img src="guide/07-challenges.png" alt="Today's challenges with progress bars" width="390" height="300" loading="lazy"><figcaption>Today’s challenges.</figcaption></figure>
+  </div>
+
+  <h2 id="menu">10. The menu — tap your name</h2>
+  <div class="pair">
+    <div>
+      <dl>
+        <dt>Your progress</dt><dd>Your streak, a calendar of practice days, how far you are in each deck, and your <strong>trickiest phrases</strong> with a button to practise just those. At the bottom, <strong>Daily reminder</strong> adds a daily alert to your calendar.</dd>
+        <dt>My phrases</dt><dd>Add your own phrases — things you actually say at home. They get their own deck.</dd>
+        <dt>Record phrases in your voice</dt><dd>Record how <em>you</em> (or a Spanish-speaking friend) say a phrase; the speaker button then plays that instead of the phone’s voice.</dd>
+        <dt>Edit name or PIN</dt><dd>Change your name, or add, change or remove your PIN.</dd>
+        <dt>Switch profile / Log out</dt><dd>For shared phones. Log out means the next person picks their own profile.</dd>
+      </dl>
+    </div>
+    <figure><img src="guide/08-menu.png" alt="The menu that opens when you tap your name" width="390" height="360" loading="lazy"><figcaption>The menu.</figcaption></figure>
+  </div>
+
+  <h2 id="search">11. Search</h2>
+  <p>Tap the <strong>magnifying glass</strong> at the top to find any phrase, in Spanish or English (accents optional). Tap a result to hear it, see how it works, share it, or <strong>Practise</strong> it right away.</p>
+
+  <h2 id="backup">12. Backups and moving to a new phone</h2>
+  <p>Your progress lives on your phone only — there’s no account or cloud. To keep a backup, or move to a new phone:</p>
+  <ol>
+    <li>At the very bottom of the app, tap <strong>Export progress</strong>, then <strong>Copy code</strong>.</li>
+    <li>Paste the code somewhere safe — a note, or a message to yourself.</li>
+    <li>On the new phone, install the app, create your profile, tap <strong>Import progress</strong>, paste the code and tap <strong>Apply</strong>.</li>
+  </ol>
+  <div class="warn"><strong>Worth doing now and then.</strong> If the Home Screen app is deleted, or the phone’s website data for it is cleared, the progress goes with it. Your export code brings it all back.</div>
+
+  <h2 id="faq">13. Questions and fixes</h2>
+  <dl>
+    <dt>There’s no sound.</dt>
+    <dd>Check the volume and that the iPhone isn’t on silent (the switch on the side). For a better Mexican voice on iPhone: <strong>Settings → Accessibility → Spoken Content → Voices → Spanish</strong>, and download a <em>Spanish (Mexico)</em> voice.</dd>
+    <dt>It opened but my progress is gone.</dt>
+    <dd>Make sure you opened it from the Home Screen icon, not a browser tab, and that you’re in the right profile (tap your name). If the app was deleted, use your export code (section 12).</dd>
+    <dt>I forgot my PIN.</dt>
+    <dd>It can’t be recovered — it only exists on the phone. On the PIN screen, “Forgot PIN?” lets you delete that profile and start again. (Importing an export code brings the progress back.)</dd>
+    <dt>How do I get the latest version?</dt>
+    <dd>It updates itself. If something looks old, close the app completely and open it again.</dd>
+    <dt>Does it work without internet?</dt>
+    <dd>Yes, once you’ve opened it online at least once.</dd>
+    <dt>“Say it out loud” doesn’t work.</dt>
+    <dd>Speech recognition isn’t available on every phone or browser. Allow the microphone if asked; otherwise use the other question types.</dd>
+    <dt>Dark mode?</dt>
+    <dd>It follows your phone’s own light/dark setting automatically.</dd>
+    <dt>Is anything sent anywhere?</dt>
+    <dd>No. Your name, PIN, progress and recordings stay on your phone. The only things that leave it are what you choose to Share or Export.</dd>
+  </dl>
+
+  <p class="foot">¡Buena suerte! · Good luck! — <a href="./">Open Aprende Conmigo</a></p>
+</div>
+</body>
+</html>

@@ -66,6 +66,9 @@ with open(os.path.join(SITE, "index.html"), "w", encoding="utf-8") as f:
     f.write(shell)
 shutil.copytree(os.path.join(HERE, "icons"), os.path.join(SITE, "icons"))
 shutil.copy(os.path.join(HERE, "manifest.webmanifest"), SITE)
+# The how-to guide and its screenshots, published next to the app.
+shutil.copy(os.path.join(HERE, "guide.html"), SITE)
+shutil.copytree(os.path.join(HERE, "guide"), os.path.join(SITE, "guide"))
 # Offline support: the service worker's cache name carries this build's version,
 # so each publish replaces the copy saved on the phone.
 version = hashlib.sha1(shell.encode("utf-8")).hexdigest()[:12]
