@@ -1,5 +1,6 @@
 // content.js — all app content, kept separate from app logic.
-// Add a new deck by adding a new top-level key here (name, icon, levels[]).
+// Add a new deck by adding a new top-level key here (name, icon, color, levels[]).
+// The deck button shows a badge: DECK_BADGES[icon] in white on `color`.
 // Add a level by appending {label, cards:[...]} to a deck's levels array.
 // Progress is keyed by deck + the card's `es` text, so cards can be added,
 // reordered or removed freely. Keep `es` unique within a deck, and note that
@@ -14,6 +15,7 @@ const DECKS = {
   everyday: {
     name: "Everyday & Greetings",
     icon: "wave",
+    color: "#1B6B78",   // deck badge colour
     levels: [
       { label: "Basics", cards: [
         {es:"¿Qué onda?", pron:"keh OHN-dah", en:"What's up? (very Mexican, casual)", ctx:"You bump into a friend in the street and want a casual “what’s up?”", icon:"wave"},
@@ -56,6 +58,7 @@ const DECKS = {
   love: {
     name: "Love & Terms of Endearment",
     icon: "heart",
+    color: "#6B2545",   // deck badge colour
     levels: [
       { label: "Basics", cards: [
         {es:"Mi amor", pron:"mee ah-MOR", en:"My love", icon:"heart"},
@@ -98,6 +101,7 @@ const DECKS = {
   family: {
     name: "Family",
     icon: "house",
+    color: "#C7832A",   // deck badge colour
     levels: [
       { label: "Basics", cards: [
         {es:"La familia", pron:"lah fah-MEE-lee-ah", en:"The family", icon:"bird"},
@@ -140,6 +144,7 @@ const DECKS = {
   food: {
     name: "Food",
     icon: "chili",
+    color: "#4F7A3A",   // deck badge colour
     levels: [
       { label: "Basics", cards: [
         {es:"¿Qué se te antoja?", pron:"keh seh teh ahn-TOH-hah", en:"What are you craving?", ctx:"Deciding what to order for dinner, you ask what they’re in the mood for.", icon:"flower"},
@@ -195,6 +200,19 @@ const ICONS = {
   house: '<path d="M8 24L24 10L40 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M13 21V40H35V21" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/><rect x="21" y="28" width="6" height="12" fill="currentColor"/>',
   chili: '<path d="M18 10C18 10 14 14 16 22C18 30 26 34 32 30C38 26 36 16 30 12" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M18 10C16 8 14 7 12 8" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>',
 };
+// Deck badges: white icons on the deck's colour, 24x24 grid. Keyed by the deck's `icon`.
+const DECK_BADGES = {
+  wave: '<path d="M4 5h16a1.5 1.5 0 0 1 1.5 1.5v9A1.5 1.5 0 0 1 20 17h-9l-5 4v-4H4a1.5 1.5 0 0 1-1.5-1.5v-9A1.5 1.5 0 0 1 4 5z"/><circle cx="8" cy="11" r=".9" fill="currentColor"/><circle cx="12" cy="11" r=".9" fill="currentColor"/><circle cx="16" cy="11" r=".9" fill="currentColor"/>',
+  heart: '<path d="M12 20s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.3a4.3 4.3 0 0 1 7.5 2.5C19.5 15.4 12 20 12 20z" fill="currentColor"/>',
+  house: '<path d="M3.5 11L12 4l8.5 7"/><path d="M6 9.5V20h12V9.5"/><path d="M12 17.2s-2.8-1.7-2.8-3.6a1.5 1.5 0 0 1 2.8-.8 1.5 1.5 0 0 1 2.8.8c0 1.9-2.8 3.6-2.8 3.6z" fill="currentColor" stroke-width="1"/>',
+  chili: '<path d="M2.5 17.5a9.5 9.5 0 0 1 19 0z"/><path d="M5 11.5c1-.8 2 .2 3-.7s2 .2 3-.6 2 .1 3-.6 2 .2 3-.5 1.6.3 2.2.4"/>', // a taco
+};
+function deckBadge(deck){
+  return '<span class="deck-badge" style="background:' + (deck.color || '#1B6B78') + '" aria-hidden="true">' +
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+    (DECK_BADGES[deck.icon] || DECK_BADGES.heart) + '</svg></span>';
+}
+
 // The sound button's speaker, drawn to match the icons above (24x24 grid, currentColor).
 const SPEAKER_SVG = '<svg viewBox="0 0 24 24" class="speaker-svg" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
   '<path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" fill="currentColor"/><path d="M15.5 9a4 4 0 0 1 0 6"/><path d="M18 6.5a7.5 7.5 0 0 1 0 11"/></svg>';

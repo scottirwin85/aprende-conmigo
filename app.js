@@ -399,7 +399,7 @@ function renderDecks(){
     btn.setAttribute('aria-pressed', state.deck === key ? 'true' : 'false');
     btn.innerHTML =
       (mastered ? '<div class="mastered-badge" aria-hidden="true">✨</div>' : '') +
-      iconSvg(d.icon, 'deck-icon-svg') +
+      deckBadge(d) +
       '<div class="deck-name">' + esc(d.name) + '</div>' +
       '<div class="deck-level">' + label + '</div>' +
       '<div class="deck-progress">' + totals.known + '/' + totals.total + ' known</div>' +
