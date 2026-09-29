@@ -18,8 +18,13 @@
 </head>
 <body>
 <div class="wrap">
+  <div id="login" hidden></div>
+  <div id="main" hidden>
   <header>
-    <div class="eyebrow">Aprende Conmigo</div>
+    <div class="topbar">
+      <div class="eyebrow">Aprende Conmigo</div>
+      <div class="profile-slot" id="profileChip"></div>
+    </div>
     <h1>Spanish, for him</h1>
     <div id="greeting"></div>
   </header>
@@ -44,6 +49,7 @@
     </div>
     <div id="syncPanel"></div>
   </div>
+  </div>
 </div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
@@ -51,6 +57,7 @@
 <script src="storage.js"></script>
 <script src="srs.js"></script>
 <script src="challenges.js"></script>
+<script src="profiles.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

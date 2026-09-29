@@ -46,7 +46,15 @@ const Storage = (function () {
     }, 300);
   }
 
-  async function get(key) {
+  // Each profile's keys get their own prefix. The first profile ("default")
+  // uses the bare keys, so progress saved before profiles existed is theirs.
+  let prefix = '';
+  function useProfile(id) { prefix = !id || id === 'default' ? '' : 'p:' + id + ':'; }
+
+  async function get(key) { return rawGet(prefix + key); }
+  async function set(key, value) { return rawSet(prefix + key, value); }
+
+  async function rawGet(key) {
     if (bridge) {
       if (Object.prototype.hasOwnProperty.call(bridge.store, key)) return bridge.store[key];
       return localGet(key);
@@ -61,7 +69,7 @@ const Storage = (function () {
     return localGet(key);
   }
 
-  async function set(key, value) {
+  async function rawSet(key, value) {
     if (bridge) {
       bridge.store[key] = value;
       scheduleBridgeSave();
@@ -74,7 +82,8 @@ const Storage = (function () {
     localSet(key, value);
   }
 
-  return { get, set, backend: bridge ? 'scriptable' : hasArtifactStorage ? 'artifact' : 'local' };
+  return { get, set, getGlobal: rawGet, setGlobal: rawSet, useProfile,
+           backend: bridge ? 'scriptable' : hasArtifactStorage ? 'artifact' : 'local' };
 })();
 
 // --- manual export / import, since the artifact store, localStorage and

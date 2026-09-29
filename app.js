@@ -1,13 +1,14 @@
 // app.js — state, spaced-repetition bookkeeping, and rendering.
 // Depends on content.js (DECKS, ICONS, iconSvg), storage.js (Storage,
-// encodeProgressBlob, decodeProgressBlob), srs.js (SRS) and challenges.js
-// (Challenges) being loaded first.
+// encodeProgressBlob, decodeProgressBlob), srs.js (SRS), challenges.js
+// (Challenges) and profiles.js (Profiles) being loaded first.
+// Nothing runs until someone picks a profile; each profile's state is loaded fresh.
 
 const LEVEL_UNLOCK_BOX = 2; // a level "unlocks the next one" once every card has been gotten right twice, on schedule
 const MASTER_BOX = 4; // a deck is "mastered" once every card is on a week-long (or longer) gap
 const ALL = 'all'; // levelByDeck value meaning "review the whole deck"
 
-let state = {
+const freshState = () => ({
   deck: 'everyday',
   levelByDeck: {},   // deckKey -> level index | ALL (unset = pick a sensible default)
   unlocked: {},      // deckKey -> unlock progress, see unlockProgress(). Persisted; never goes down.
@@ -25,7 +26,13 @@ let state = {
   progress: {},      // cardId -> {box, due}
   syncPanel: null,   // null | 'export' | 'import'
   syncMessage: '',
-};
+});
+let state = freshState();
+
+// The signed-in profile's name, for personal touches.
+function userName(){ const p = Profiles.current(); return p ? p.name : ''; }
+// "¡Buenos días!" -> "¡Buenos días, Sam!"
+function withName(text){ const n = userName(); return n ? text.replace(/!$/, () => ', ' + n + '!') : text; }
 
 function shuffled(arr){
   const a = arr.slice();
@@ -289,18 +296,18 @@ function renderGreeting(){
   const phrases = due + ' phrase' + (due === 1 ? '' : 's');
   const status = due && streak && !practisedToday ? 'Keep your ' + streak + '-day streak going \u2014 ' + phrases + ' ready.'
     : due ? phrases + ' ready to practise.'
-    : 'All caught up. ¡Bien hecho! (Well done!)';
+    : 'All caught up. ' + withName('¡Bien hecho!') + ' (Well done!)';
   const el = document.getElementById('greeting');
   el.innerHTML =
     '<button class="greeting-btn" id="greetingBtn" title="Hear it">' +
       iconSvg(g.icon, 'greeting-icon') +
       '<span class="greeting-text">' +
-        '<span class="greeting-es">' + g.es + ' <span class="greeting-ask">' + g.ask + '</span> <span aria-hidden="true">🔊</span></span>' +
+        '<span class="greeting-es">' + esc(withName(g.es)) + ' <span class="greeting-ask">' + g.ask + '</span> <span aria-hidden="true">🔊</span></span>' +
         '<span class="greeting-en">' + g.en + ' \u2014 ' + g.askEn + '</span>' +
-        '<span class="greeting-status">' + status + '</span>' +
+        '<span class="greeting-status">' + esc(status) + '</span>' +
       '</span>' +
     '</button>';
-  document.getElementById('greetingBtn').onclick = () => speak(g.es + ' ' + g.ask);
+  document.getElementById('greetingBtn').onclick = () => speak(withName(g.es) + ' ' + g.ask);
 }
 
 function renderChallenges(){
@@ -321,7 +328,7 @@ function renderChallenges(){
           '<span class="ch-prog">' + c.value + '/' + c.target + '</span>' +
           '<span class="ch-bar"><span style="width:' + Math.round(c.value / c.target * 100) + '%"></span></span>' +
         '</li>').join('') + '</ul>' +
-      (doneCount === daily.length ? '<div class="ch-alldone">¡Reto cumplido! (Challenge met!) New challenges tomorrow.</div>' : '') +
+      (doneCount === daily.length ? '<div class="ch-alldone">' + esc(withName('¡Reto cumplido!')) + ' (Challenge met!) New challenges tomorrow.</div>' : '') +
       '<details class="ach" id="achDetails"' + (wasOpen ? ' open' : '') + '>' +
         '<summary>Achievements \u00b7 ' + earned + ' of ' + ach.length + '</summary>' +
         '<div class="ach-grid">' + ach.map(a =>
@@ -772,10 +779,17 @@ document.getElementById('importBtn').onclick = () => { state.syncPanel = state.s
     loadVoices();
     window.speechSynthesis.onvoiceschanged = loadVoices; // voices load asynchronously in most browsers
   }
-  await loadProgress();
-  afterChallengeEvent(true); // award anything existing progress already earns, quietly
-  resetDeckState();
-  render();
+  // Shows the welcome / "who's practising?" / PIN screen as needed, then loads that profile.
+  await Profiles.start(async () => {
+    state = freshState();
+    await loadProgress();
+    afterChallengeEvent(true); // award anything existing progress already earns, quietly
+    resetDeckState();
+    render();
+  });
   // Keep the greeting and today's challenges current if the app stays open past a boundary.
-  setInterval(() => { renderGreeting(); renderChallenges(); renderStats(); }, 60 * 1000);
+  setInterval(() => {
+    if(!Profiles.current()) return;
+    renderGreeting(); renderChallenges(); renderStats();
+  }, 60 * 1000);
 })();

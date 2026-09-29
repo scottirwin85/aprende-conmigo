@@ -11,7 +11,18 @@ let fails = 0;
 const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++; };
 (async () => {
   const browser = await chromium.launch();
-  const ctx = await browser.newContext();
+  // Most tests start signed in as "Sam" — the first profile, which owns the bare storage keys.
+  const newCtx = async (seed = true) => {
+    const c = await browser.newContext();
+    if (seed) await c.addInitScript(() => {
+      try {
+        if (!localStorage.getItem('profiles')) localStorage.setItem('profiles', JSON.stringify(
+          { list: [{ id: 'default', name: 'Sam', color: '#1B6B78', pin: null }], active: 'default' }));
+      } catch (e) {}
+    });
+    return c;
+  };
+  const ctx = await newCtx();
   const page = await ctx.newPage();
   page.on('pageerror', e => { console.log('PAGEERROR', e.message); fails++; });
   await page.clock.install({ time: new Date('2026-09-29T09:00:00') });
@@ -107,7 +118,7 @@ const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++
   ok(await page.evaluate(() => Object.getPrototypeOf(state.progress) === Object.prototype && !('x' in state.progress)), 'no prototype pollution / junk ids');
 
   // 10. legacy localStorage migration + fresh import into new context
-  const ctx2 = await browser.newContext(); const p2 = await ctx2.newPage();
+  const ctx2 = await newCtx(); const p2 = await ctx2.newPage();
   p2.on('pageerror', e => { console.log('PAGEERROR2', e.message); fails++; });
   await p2.goto(URL);
   await p2.evaluate(() => { localStorage.setItem('progress', JSON.stringify({'everyday:0:0': {box: 3, due: 1e15}, 'love:2:9': {box:1, due: 5}})); localStorage.setItem('streak','7'); });
@@ -119,7 +130,7 @@ const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++
   ok(await p2.evaluate(() => isDeckFinished('everyday')), 'import carries unlocks');
 
   // 11. Scriptable bridge
-  const ctx3 = await browser.newContext(); const p3 = await ctx3.newPage();
+  const ctx3 = await newCtx(); const p3 = await ctx3.newPage();
   p3.on('pageerror', e => { console.log('PAGEERROR3', e.message); fails++; });
   const html = fs.readFileSync(path.join(DIST, 'spanish-app.html'), 'utf8').replace('<!--HOST-BOOTSTRAP-->',
     '<script>window.__APRENDE_SCRIPTABLE__={store:{progress: JSON.stringify({"food/Repetir":{box:2,due:1}})}};</script>');
@@ -133,12 +144,12 @@ const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++
   ok(saves.length >= 1 && saves[0].startsWith('aprendeconmigo://save?') && JSON.parse(decodeURIComponent(saves[0].split('?')[1])).progress, 'save request sent to wrapper (' + saves.length + ')');
 
   // 12. artifact storage fallback: failing set -> readable via get
-  const ctx4 = await browser.newContext(); const p4 = await ctx4.newPage();
+  const ctx4 = await newCtx(); const p4 = await ctx4.newPage();
   await p4.addInitScript(() => { window.storage = { get: async () => null, set: async () => { throw new Error('nope'); } }; });
   await p4.goto(URL); await p4.click('#knowBtn'); await p4.waitForTimeout(100);
   ok(await p4.evaluate(async () => Storage.backend === 'artifact' && !!(await Storage.get('progress'))), 'artifact write failure still readable');
   // 13. scheduling: wrong answers drop two boxes, gaps grow to 3 months
-  const ctx5 = await browser.newContext(); const p5 = await ctx5.newPage();
+  const ctx5 = await newCtx(); const p5 = await ctx5.newPage();
   p5.on('pageerror', e => { console.log('PAGEERROR5', e.message); fails++; });
   await p5.goto(URL);
   const sched = await p5.evaluate(() => {
@@ -206,7 +217,7 @@ const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++
   const localFiles = {}, cloudFiles = {};
   localFiles['/local/aprende-conmigo-progress.json'] = JSON.stringify({ progress: JSON.stringify({'food/Repetir': {box: 3, due: 9e12}}) });
   const runWrapper = async (interact) => {
-    const ctxS = await browser.newContext(); const pS = await ctxS.newPage();
+    const ctxS = await newCtx(); const pS = await ctxS.newPage();
     pS.on('pageerror', e => { console.log('PAGEERROR-S', e.message); fails++; });
     class WebView {
       async loadHTML(html, base) {
@@ -240,9 +251,9 @@ const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++
   await r2.close();
 
   // 17. greeting follows the time of day
-  for (const [t, es, en] of [['08:30', '¡Buenos días!', 'Good morning'], ['15:00', '¡Buenas tardes!', 'Good afternoon'],
-                            ['20:00', '¡Buenas noches!', 'Good evening'], ['02:00', '¡Buenas noches!', 'It’s late']]) {
-    const pg = await browser.newPage();
+  for (const [t, es, en] of [['08:30', '¡Buenos días, Sam!', 'Good morning'], ['15:00', '¡Buenas tardes, Sam!', 'Good afternoon'],
+                            ['20:00', '¡Buenas noches, Sam!', 'Good evening'], ['02:00', '¡Buenas noches, Sam!', 'It’s late']]) {
+    const pg = await (await newCtx()).newPage();
     await pg.clock.install({ time: new Date('2026-09-29T' + t + ':00') });
     await pg.goto(URL);
     const g = await pg.textContent('#greeting');
@@ -251,7 +262,7 @@ const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++
   }
 
   // 18-22. daily challenges, streak, achievements
-  const pc = await browser.newPage();
+  const pc = await (await newCtx()).newPage();
   pc.on('pageerror', e => { console.log('PAGEERROR-C', e.message); fails++; });
   await pc.clock.install({ time: new Date('2026-09-29T09:00:00') });
   await pc.goto(URL);
@@ -331,6 +342,69 @@ const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++
   ok(await pc.evaluate(() => { state.syncPanel = 'export'; renderSync(); return !!decodeProgressBlob(document.getElementById('exportBox').value).challenges; }),
      'export includes challenges');
   await pc.close();
+
+  // 23. profiles: welcome, legacy progress, second profile with PIN, switching, deleting
+  const pctx = await newCtx(false); const pp = await pctx.newPage();
+  pp.on('pageerror', e => { console.log('PAGEERROR-P', e.message); fails++; });
+  await pp.clock.install({ time: new Date('2026-09-29T08:30:00') });
+  await pp.goto(URL);
+  await pp.evaluate(() => localStorage.setItem('progress', JSON.stringify({ 'food/Repetir': { box: 2, due: 9e12 } })));
+  await pp.reload();
+  ok(await pp.isVisible('#login') && !(await pp.isVisible('#main')), 'first launch shows the welcome screen, app hidden');
+  ok((await pp.textContent('#login')).includes('progress already on this device will be kept'), 'welcome mentions keeping existing progress');
+  await pp.click('#saveProfileBtn');
+  ok((await pp.textContent('#formError')).includes('enter a name'), 'name is required');
+  await pp.fill('#nameInput', 'Sam'); await pp.fill('#pinSet', '12');
+  await pp.click('#saveProfileBtn');
+  ok((await pp.textContent('#formError')).includes('4 digits'), 'PIN must be 4 digits');
+  await pp.fill('#pinSet', ''); await pp.click('#saveProfileBtn');
+  ok(await pp.isVisible('#main') && (await pp.textContent('#greeting')).includes('¡Buenos días, Sam!'), 'greeting uses the name');
+  ok(await pp.evaluate(() => state.progress['food/Repetir'].box) === 2, 'first profile keeps the existing progress');
+  ok((await pp.textContent('#profileChip')).includes('Sam'), 'profile button shows the name');
+  await pp.reload();
+  ok(await pp.isVisible('#main'), 'no PIN: straight back in on the next launch');
+
+  // add a second profile with a PIN
+  await pp.click('#chipBtn'); await pp.click('#menuSwitch');
+  ok((await pp.textContent('#login')).includes('¿Quién va a practicar?'), 'switch shows the profile picker');
+  await pp.click('#addProfileBtn');
+  await pp.fill('#nameInput', 'sam'); await pp.click('#saveProfileBtn');
+  ok((await pp.textContent('#formError')).includes('already a profile'), 'duplicate names are rejected');
+  await pp.fill('#nameInput', 'Alex <b>'); await pp.fill('#pinSet', '4321'); await pp.click('#saveProfileBtn');
+  ok((await pp.textContent('#greeting')).includes('¡Buenos días, Alex <b>!') && !(await pp.$('#greeting b')), 'second profile greeted by name (and names are escaped)');
+  ok(await pp.evaluate(() => Object.keys(state.progress).length) === 0, 'second profile starts with its own empty progress');
+  await pp.click('#knowBtn');
+  ok(await pp.evaluate(() => Object.keys(JSON.parse(localStorage.getItem('progress'))).length) === 1, "Alex's answers don't touch Sam's progress");
+  ok(await pp.evaluate(() => Object.keys(localStorage).some(k => /^p:[a-z0-9]+:progress$/.test(k))), "Alex's progress is stored under their own keys");
+
+  // PIN on the next launch
+  await pp.reload();
+  ok(await pp.isVisible('#pinInput') && !(await pp.isVisible('#main')), 'profile with a PIN asks for it on launch');
+  await pp.fill('#pinInput', '1111');
+  ok((await pp.textContent('#pinError')).includes('isn’t right') && !(await pp.isVisible('#main')), 'wrong PIN is refused');
+  await pp.fill('#pinInput', '4321');
+  ok(await pp.isVisible('#main') && await pp.evaluate(() => Object.keys(state.progress).length) === 1, 'right PIN opens Alex with their progress');
+  ok(!(await pp.evaluate(() => localStorage.getItem('profiles'))).includes('4321'), 'PIN is not stored as typed');
+
+  // switch back to Sam: no PIN, Sam's own state
+  await pp.click('#chipBtn'); await pp.click('#menuSwitch');
+  await pp.click('.profile-pick:has-text("Sam")');
+  ok((await pp.textContent('#greeting')).includes('Sam') && await pp.evaluate(() => !!state.progress['food/Repetir']), 'switching loads the other profile');
+
+  // edit: remove nothing, rename
+  await pp.click('#chipBtn'); await pp.click('#menuEdit');
+  await pp.fill('#nameInput', 'Samuel'); await pp.click('#saveProfileBtn');
+  ok((await pp.textContent('#greeting')).includes('Samuel'), 'renaming updates the greeting');
+
+  // delete Alex via the forgotten-PIN route (two taps)
+  await pp.click('#chipBtn'); await pp.click('#menuSwitch');
+  await pp.click('.profile-pick:has-text("Alex")');
+  await pp.click('#forgotBtn'); await pp.click('#forgotDeleteBtn');
+  ok((await pp.textContent('#forgotDeleteBtn')).includes('Tap again') && await pp.isVisible('#pinInput'), 'first tap on delete only asks again');
+  await pp.click('#forgotDeleteBtn');
+  ok((await pp.$$('.profile-pick[data-id]')).length === 1, 'second tap deletes the profile');
+  ok(await pp.evaluate(() => !Object.keys(localStorage).some(k => k.startsWith('p:') && localStorage.getItem(k))), "deleted profile's progress is cleared");
+  await pctx.close();
 
   await browser.close();
   console.log(fails ? fails + ' FAILED' : 'ALL PASSED');
