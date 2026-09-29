@@ -54,6 +54,14 @@ It changes how questions are asked, never how often cards come back.
 | Mixed mode | harder types come later | as above | harder types come sooner |
 | Match the pairs | 4 pairs | 5 pairs | 6 pairs |
 
+## Your progress
+
+**Your progress** (in the menu under your name) shows your streak, a 5-week
+practice calendar, correct answers per day, every deck's progress, and your
+**trickiest phrases** (the ones you miss most) with a button to practise just
+those. **Daily reminder** adds a repeating "Spanish practice" event with an
+alert to the phone's calendar (a phone notification would need a server).
+
 ## My phrases
 
 **My phrases** (in the menu under your name) is for the things you really say

@@ -19,6 +19,7 @@ const freshState = () => ({
   difficulty: 'normal', // one of DIFFICULTY_IDS (quiz.js); saved per profile
   speakInMix: false, // include "say it out loud" questions in Mixed
   q: null,           // {key, type}: the current quiz question's type, fixed while it's on screen
+  tricky: null,      // card ids, while practising "trickiest phrases" from the Progress page
   talkPick: {},      // deckKey -> which conversation is showing
   talkEnglish: false, // show the English under each conversation line
   practice: false,   // true = the session includes cards that aren't due yet
@@ -209,6 +210,7 @@ function isReviewing(){ return currentLevel(state.deck) === ALL; }
 
 // Returns the active pool of cards, each tagged with its stable _id.
 function activeCards(){
+  if(state.tricky) return state.tricky.map(cardById).filter(Boolean);
   const lvl = currentLevel(state.deck);
   return lvl === ALL ? deckCards(state.deck) : levelCards(state.deck, lvl);
 }
@@ -230,6 +232,14 @@ function nextDueTime(cards){
   return future.length ? Math.min.apply(null, future) : null;
 }
 
+// The card with this id, from any deck (tagged with _id), or null if it no longer exists.
+function cardById(id){
+  const deckKey = id.split('/')[0];
+  if(!DECKS[deckKey]) return null;
+  const c = deckCards(deckKey).find(x => x._id === id);
+  return c || null;
+}
+
 // Returns true when a correct answer came before the card was due, so its
 // schedule didn't change (practice rounds).
 // qtype: which quiz question type was asked (quiz.js), or undefined for flashcards.
@@ -239,17 +249,18 @@ function recordAnswer(id, correct, qtype){
   const early = after === before;
   if(!early){ state.progress[id] = after; saveProgress(); }
   if(correct){ state.correctTotal++; saveCorrectTotal(); }
-  const was = state.unlocked[state.deck] || 1;
-  const reached = unlockProgress(state.deck);
+  const deckKey = id.split('/')[0]; // the card's own deck (a "trickiest phrases" round mixes decks)
+  const was = state.unlocked[deckKey] || 1;
+  const reached = unlockProgress(deckKey);
   if(reached > was){
-    state.unlocked[state.deck] = reached;
+    state.unlocked[deckKey] = reached;
     saveUnlocked();
-    state.levelUp = { deck: state.deck, to: reached - 1 }; // index of the new level, or levels.length = deck finished
+    state.levelUp = { deck: deckKey, to: reached - 1 }; // index of the new level, or levels.length = deck finished
   }
 
   // challenges: every answer counts toward the day streak and today's challenges
   const now = Date.now();
-  Challenges.recordAnswer(state.stats, { deck: state.deck, correct, mode: state.mode, qtype, difficulty: state.difficulty, now });
+  Challenges.recordAnswer(state.stats, { id, deck: deckKey, correct, mode: state.mode, qtype, difficulty: state.difficulty, now });
   if(!early && !state.practice && !activeCards().some(c => SRS.isDue(cardRecord(c._id), now))){
     Challenges.recordCleared(state.stats, now);
   }
@@ -388,11 +399,12 @@ function resetDeckState(){
 
 function startSession(practice){ state.practice = !!practice; resetDeckState(); render(); }
 // Changing deck or level dismisses a pending level-up; switching Flashcards/Quiz doesn't.
-function selectDeck(key){ state.deck = key; state.levelUp = null; startSession(false); }
+function selectDeck(key){ state.deck = key; state.levelUp = null; state.tricky = null; startSession(false); }
 function selectLevel(deckKey, levelIdx){
   if(levelIdx === ALL ? !isDeckFinished(deckKey) : levelIdx >= unlockedLevelCount(deckKey)) return;
   state.levelByDeck[deckKey] = levelIdx;
   state.levelUp = null;
+  state.tricky = null;
   startSession(false);
 }
 
@@ -475,11 +487,17 @@ function renderBanner(){
       : 'You’ve finished every level in ' + name + '. Now the whole deck is mixed together, and each phrase comes back when it’s due.') +
       '</div>';
   }
-  if(state.practice){
+  if(state.tricky){
+    html += '<div class="practice-banner">Practising your trickiest phrases. ' +
+      '<button class="link-btn" id="exitTrickyBtn">Back to your decks</button></div>';
+  }
+  if(state.practice && !state.tricky){
     html += '<div class="practice-banner">Practice round: includes cards that aren’t due yet. Those only move up once they’re due, so this won’t rush the schedule. ' +
       '<button class="link-btn" id="exitPracticeBtn">Back to due cards</button></div>';
   }
   el.innerHTML = html;
+  const exitTricky = document.getElementById('exitTrickyBtn');
+  if(exitTricky) exitTricky.onclick = () => { state.tricky = null; startSession(false); };
   const exit = document.getElementById('exitPracticeBtn');
   if(exit) exit.onclick = () => startSession(false);
 }
@@ -905,6 +923,120 @@ function renderMinePanel(editIndex){
   });
 }
 
+// ---- Progress page ----
+const DAY_MS = 24 * 60 * 60 * 1000;
+const fmtDay = t => new Date(t).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+function trickiest(n){
+  const misses = state.stats.misses;
+  return Object.keys(misses).sort((a, b) => misses[b] - misses[a])
+    .map(id => ({ card: cardById(id), misses: misses[id] }))
+    .filter(x => x.card && cardRecord(x.card._id).box < MASTER_BOX) // stop listing ones you've since mastered
+    .slice(0, n);
+}
+function renderProgressPanel(){
+  const now = Date.now(), st = state.stats;
+  const ctx = achievementContext();
+  const dayOf = t => st.days[Challenges.dayKey(t)];
+  const startOfDay = t => { const d = new Date(t); d.setHours(12, 0, 0, 0); return d.getTime(); }; // noon avoids DST edges
+  const today = startOfDay(now);
+
+  // stat tiles
+  const tile = (value, label) => '<div class="stat-tile"><div class="stat-value">' + value + '</div><div class="stat-label">' + label + '</div></div>';
+  const tiles = '<div class="stat-tiles">' +
+    tile(Challenges.currentStreak(st, now), 'day streak') + tile(st.bestStreak, 'best streak') +
+    tile(ctx.known + '<span class="stat-of">/' + ctx.totalCards + '</span>', 'phrases known') + tile(state.correctTotal, 'correct answers') + '</div>';
+
+  // practice calendar: last 5 weeks, Monday first
+  const mondayOffset = (new Date(today).getDay() + 6) % 7;
+  const start = today - (mondayOffset + 28) * DAY_MS;
+  const shade = n => n >= 50 ? 4 : n >= 25 ? 3 : n >= 10 ? 2 : n >= 1 ? 1 : 0;
+  let cells = '';
+  for(let i = 0; i < 35; i++){
+    const t = start + i * DAY_MS, d = dayOf(t), n = d ? d.answered : 0;
+    if(t > today + DAY_MS / 2){ cells += '<span class="cal-cell future"></span>'; continue; }
+    const label = fmtDay(t) + ': ' + (n ? n + ' answer' + (n === 1 ? '' : 's') : 'no practice');
+    cells += '<span class="cal-cell s' + shade(n) + (t === today ? ' today' : '') + '" title="' + label + '" aria-label="' + label + '"></span>';
+  }
+  const calendar = '<section class="prog-section"><h2>Practice days</h2>' +
+    '<div class="cal-head">' + ['M','T','W','T','F','S','S'].map(x => '<span>' + x + '</span>').join('') + '</div>' +
+    '<div class="cal-grid">' + cells + '</div>' +
+    '<div class="cal-key">Less <span class="cal-cell s0"></span><span class="cal-cell s1"></span><span class="cal-cell s2"></span><span class="cal-cell s3"></span><span class="cal-cell s4"></span> More</div></section>';
+
+  // correct answers per day, last 14 days (one series, so no legend: the title names it)
+  const days = [];
+  for(let i = 13; i >= 0; i--){ const t = today - i * DAY_MS, d = dayOf(t); days.push({ t, v: d ? d.correct : 0 }); }
+  const max = Math.max(10, ...days.map(d => d.v));
+  const bars = '<section class="prog-section"><h2>Correct answers, last 14 days</h2>' +
+    '<div class="bar-readout" id="barReadout">Today: ' + days[13].v + ' correct</div>' +
+    '<div class="bar-chart" role="list">' + days.map((d, i) => {
+      const label = fmtDay(d.t) + ': ' + d.v + ' correct';
+      return '<button class="bar-col" role="listitem" data-label="' + label + '" aria-label="' + label + '">' +
+        '<span class="bar' + (d.v ? '' : ' zero') + '" style="height:' + (d.v ? Math.max(4, Math.round(d.v / max * 100)) : 2) + '%"></span></button>';
+    }).join('') + '</div>' +
+    '<div class="bar-axis">' + days.map((d, i) => '<span>' + (i % 2 === 1 || i === 13 ? new Date(d.t).toLocaleDateString('en-GB', { weekday: 'narrow' }) : '') + '</span>').join('') + '</div>' +
+    '<div class="bar-scale">Tallest bar = ' + max + '</div></section>';
+
+  // deck progress
+  const decks = '<section class="prog-section"><h2>Decks</h2><ul class="prog-decks">' + Object.keys(DECKS).map(k => {
+    const t = deckTotals(k);
+    return '<li>' + deckBadge(DECKS[k]) + '<div class="prog-deck-info"><div class="prog-deck-top"><span>' + esc(DECKS[k].name) + '</span><span class="prog-count">' + t.known + '/' + t.total + '</span></div>' +
+      '<div class="deck-bar"><div class="deck-bar-fill" style="width:' + Math.round(t.known / t.total * 100) + '%"></div></div></div></li>';
+  }).join('') + '</ul></section>';
+
+  // trickiest phrases
+  const tricky = trickiest(8);
+  const trickyHtml = '<section class="prog-section"><h2>Trickiest phrases</h2>' + (tricky.length
+    ? '<ul class="voice-list">' + tricky.map(x => '<li class="voice-row"><div class="voice-text"><div class="voice-es">' + esc(x.card.es) + '</div><div class="voice-en">' + esc(stripNote(x.card.en)) + '</div></div>' +
+        '<span class="miss-count">missed ' + x.misses + '×</span></li>').join('') + '</ul>' +
+      '<button class="ctrl-btn primary prog-btn" id="practiseTricky">Practise these</button>'
+    : '<p class="panel-sub">Nothing tricky yet — phrases you get wrong will show up here.</p>') + '</section>';
+
+  // daily reminder
+  const reminder = '<section class="prog-section"><h2>Daily reminder</h2>' +
+    '<p class="panel-sub">Adds a daily “Spanish practice” event with an alert to your phone’s calendar.</p>' +
+    '<div class="reminder-row"><label class="field reminder-time"><span>Time</span><input type="time" id="reminderTime" value="19:00"></label>' +
+    '<a class="ctrl-btn primary prog-btn reminder-link" id="reminderLink" download="spanish-practice.ics">Add to my calendar</a></div></section>';
+
+  showPanel('Your progress', tiles + calendar + bars + decks + trickyHtml + reminder);
+
+  const readout = document.getElementById('barReadout');
+  document.querySelectorAll('.bar-col').forEach(b => {
+    const show = () => { readout.textContent = b.dataset.label; document.querySelectorAll('.bar-col').forEach(x => x.classList.toggle('on', x === b)); };
+    b.onmouseenter = show; b.onfocus = show; b.onclick = show;
+  });
+  const practise = document.getElementById('practiseTricky');
+  if(practise) practise.onclick = () => {
+    state.tricky = tricky.map(x => x.card._id);
+    state.practice = true; state.levelUp = null;
+    if(state.mode === 'talk') state.mode = 'flash';
+    resetDeckState();
+    closePanel();
+  };
+  const timeInput = document.getElementById('reminderTime'), link = document.getElementById('reminderLink');
+  const update = () => { link.href = 'data:text/calendar;charset=utf-8,' + encodeURIComponent(reminderIcs(timeInput.value || '19:00', now)); };
+  timeInput.onchange = update; timeInput.oninput = update;
+  update();
+}
+
+// A repeating daily calendar event (iCalendar), starting at the next occurrence of `hhmm`.
+function reminderIcs(hhmm, now){
+  const [h, m] = hhmm.split(':').map(Number);
+  const first = new Date(now); first.setHours(h, m, 0, 0);
+  if(first.getTime() <= now) first.setDate(first.getDate() + 1);
+  const p = n => String(n).padStart(2, '0');
+  const local = d => d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + 'T' + p(d.getHours()) + p(d.getMinutes()) + '00';
+  const utc = d => d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+  const url = /^https?:$/.test(location.protocol) ? location.origin + location.pathname : '';
+  return ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Aprende Conmigo//Daily reminder//EN', 'CALSCALE:GREGORIAN',
+    'BEGIN:VEVENT', 'UID:aprende-reminder-' + now + '@aprende-conmigo', 'DTSTAMP:' + utc(new Date(now)),
+    'DTSTART:' + local(first), 'DURATION:PT10M', 'RRULE:FREQ=DAILY',
+    'SUMMARY:Spanish practice — Aprende Conmigo',
+    'DESCRIPTION:A few minutes of Spanish. ¡Tú puedes!' + (url ? '\\n' + url : ''),
+    url ? 'URL:' + url : null,
+    'BEGIN:VALARM', 'ACTION:DISPLAY', 'DESCRIPTION:Time for Spanish!', 'TRIGGER:PT0M', 'END:VALARM',
+    'END:VEVENT', 'END:VCALENDAR'].filter(Boolean).join('\r\n');
+}
+
 // ---- full-page panels (recordings, my phrases, progress), shown in place of the main app ----
 function showPanel(title, html){
   document.getElementById('main').hidden = true;
@@ -1007,6 +1139,7 @@ if('serviceWorker' in navigator && /^https?:$/.test(location.protocol) && locati
   }
   Voice.init();
   Profiles.setMenu([
+    { id: 'menuProgress', label: 'Your progress', onClick: () => renderProgressPanel() },
     { id: 'menuMine', label: 'My phrases', onClick: () => renderMinePanel() },
     { id: 'menuVoice', label: 'Record phrases in your voice', onClick: () => renderVoicePanel() },
   ]);

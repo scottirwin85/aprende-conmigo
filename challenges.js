@@ -2,7 +2,7 @@
 // Pure bookkeeping on a plain `stats` object; app.js records events into it,
 // saves it, and renders the results.
 const Challenges = (function () {
-  const KEEP_DAYS = 30; // daily records older than this are pruned
+  const KEEP_DAYS = 60; // daily records older than this are pruned (Progress shows 5 weeks)
   // Question types counted by "De todo un poco" (speaking is optional, so not required).
   const QUIZ_KINDS = ['recognize', 'reverse', 'listen', 'type', 'gap', 'build', 'scenario'];
 
@@ -24,7 +24,7 @@ const Challenges = (function () {
   function blankStats() {
     return { days: {}, streak: 0, bestStreak: 0, lastDay: null, bestRun: 0,
              listenedTotal: 0, dailyDoneDays: 0, early: false, late: false, earned: {},
-             typedTotal: 0, spokenTotal: 0, matchGames: 0, bestMatch: 0, typesDone: {}, hardCorrect: 0, convosDone: {} };
+             typedTotal: 0, spokenTotal: 0, matchGames: 0, bestMatch: 0, typesDone: {}, hardCorrect: 0, convosDone: {}, misses: {} };
   }
 
   // ---- daily challenges ----
@@ -130,6 +130,8 @@ const Challenges = (function () {
     if (hour >= 22 || hour < 4) stats.late = true;
 
     d.answered++;
+    // How often each phrase is missed, for "trickiest phrases" on the Progress page.
+    if (!ev.correct && ev.id) stats.misses[ev.id] = (stats.misses[ev.id] || 0) + 1;
     d.deckAnswers[ev.deck] = (d.deckAnswers[ev.deck] || 0) + 1;
     if (ev.correct) {
       d.correct++;
@@ -212,6 +214,12 @@ const Challenges = (function () {
     if (!raw || typeof raw !== 'object') return s;
     ['streak', 'bestStreak', 'bestRun', 'listenedTotal', 'dailyDoneDays', 'typedTotal', 'spokenTotal', 'matchGames', 'bestMatch', 'hardCorrect']
       .forEach(k => { s[k] = Math.floor(nonNeg(raw[k])); });
+    if (raw.misses && typeof raw.misses === 'object') {
+      // keep the 300 most-missed, so this never grows without limit
+      Object.keys(raw.misses).filter(k => k.length <= 200 && nonNeg(raw.misses[k]) >= 1)
+        .sort((a, b) => raw.misses[b] - raw.misses[a]).slice(0, 300)
+        .forEach(k => { s.misses[k] = Math.floor(raw.misses[k]); });
+    }
     if (raw.convosDone && typeof raw.convosDone === 'object') Object.keys(raw.convosDone).forEach(k => { if (/^[a-z]+\/[a-z0-9]+$/.test(k) && raw.convosDone[k] === true) s.convosDone[k] = true; });
     if (raw.typesDone && typeof raw.typesDone === 'object') QUIZ_KINDS.forEach(t => { if (raw.typesDone[t] === true) s.typesDone[t] = true; });
     s.early = raw.early === true;
