@@ -1,7 +1,8 @@
 # Aprende Conmigo
 
-A Spanish flashcard app for real Mexican Spanish — everyday phrases, terms of
-endearment, family and food — with spaced repetition, so each phrase comes back
+A Spanish flashcard app for real Mexican Spanish — 330 phrases in 11 decks
+(everyday, love, family, food, numbers & time, feelings, around the house, out &
+about, texting & slang, meeting the family, celebrations) — with spaced repetition, so each phrase comes back
 just as it's about to be forgotten.
 
 **Open it:** https://scottirwin85.github.io/aprende-conmigo/
@@ -13,6 +14,14 @@ just as it's about to be forgotten.
 
 It then opens full-screen from its own icon, like an app. Progress is saved on
 the phone.
+
+## Why? notes and conversations
+
+- Most phrases have a **Why?** note (on the back of the flashcard, and after
+  quiz answers) explaining how the phrase works — add `why:"…"` to a card.
+- The **Conversations** tab has short dialogues for each deck. Tap a line to
+  hear it, or **Play all**; **Show English** reveals the translations.
+  Dialogues live in `conversations.js`.
 
 ## Quiz types
 
@@ -96,6 +105,7 @@ tab shows what went wrong.
 
 | File | What it does |
 |---|---|
+| `conversations.js` | Short dialogues for the Conversations tab |
 | `content.js` | Decks, levels and cards |
 | `srs.js` | Spaced-repetition schedule: 10 min → 1 day → 3 days → 1 week → 2 weeks → 1 month → 3 months |
 | `challenges.js` | Daily challenges (3 new each day), the day streak and achievements |

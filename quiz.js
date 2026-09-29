@@ -382,7 +382,8 @@ function finishQuestion(type, card, isCorrect, notes){
     reveal.className = 'quiz-reveal ' + (isCorrect ? 'good' : 'bad');
     reveal.innerHTML = '<div class="reveal-head">' + (isCorrect ? '✓ Correct' : 'The answer:') + '</div>' +
       '<div class="reveal-es">' + esc(card.es) + ' ' + quizSoundButton('revealSoundBtn') + '</div>' +
-      '<div class="reveal-sub">' + (card.pron ? esc(card.pron) + ' · ' : '') + esc(card.en) + '</div>';
+      '<div class="reveal-sub">' + (card.pron ? esc(card.pron) + ' · ' : '') + esc(card.en) + '</div>' +
+      (card.why ? '<div class="reveal-why"><b>Why?</b> ' + esc(card.why) + '</div>' : '');
     stage.appendChild(reveal);
     document.getElementById('revealSoundBtn').onclick = () => hearCard(card.es);
   }

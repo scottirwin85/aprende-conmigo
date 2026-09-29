@@ -50,17 +50,21 @@ header{ margin-bottom:22px; }
 .eyebrow{ font-size:13px; color:var(--teal-dark); font-weight:600; margin-bottom:4px; }
 h1{ font-family:var(--font-display); font-weight:600; font-size:34px; line-height:1.05; margin:0 0 6px; color:var(--ink); }
 
-.decks{ display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:24px 0 8px; }
-.deck-btn{ position:relative; border:1px solid var(--line); background:var(--surface); border-radius:14px; padding:14px 14px 12px; text-align:left; cursor:pointer; font-family:var(--font-body); color:var(--ink); } /* explicit colour: iOS Safari makes button text blue otherwise */
+.decks{ display:grid; grid-template-columns:1fr 1fr; gap:8px; margin:22px 0 8px; }
+/* explicit colour: iOS Safari makes button text blue otherwise */
+.deck-btn{ position:relative; display:grid; grid-template-columns:32px 1fr; column-gap:9px; align-items:center; border:1px solid var(--line); background:var(--surface); border-radius:13px; padding:10px 11px 9px; text-align:left; cursor:pointer; font-family:var(--font-body); color:var(--ink); }
 .deck-btn.active{ border-color:var(--teal); background:var(--tint-teal); }
-.deck-badge{ display:flex; align-items:center; justify-content:center; width:36px; height:36px; border-radius:11px; color:#fff; margin-bottom:8px; }
-.deck-badge svg{ width:21px; height:21px; display:block; }
-.deck-name{ font-weight:600; font-size:15px; margin-bottom:2px; }
-.deck-level{ font-size:11px; color:var(--teal-dark); font-weight:600; margin-bottom:2px; }
-.deck-progress{ font-size:12px; color:rgba(var(--ink-rgb),0.55); }
-.deck-bar{ height:4px; border-radius:2px; background:var(--line); margin-top:8px; overflow:hidden; }
+.deck-badge{ display:flex; align-items:center; justify-content:center; width:32px; height:32px; border-radius:10px; color:#fff; }
+.deck-badge svg{ width:19px; height:19px; display:block; }
+.deck-info{ min-width:0; }
+.deck-name{ font-weight:600; font-size:13.5px; line-height:1.2; }
+.deck-meta{ font-size:11px; margin-top:2px; }
+.deck-level{ color:var(--teal-dark); font-weight:600; }
+.deck-progress{ color:rgba(var(--ink-rgb),0.55); }
+.deck-progress::before{ content:" \00b7 "; }
+.deck-bar{ grid-column:1 / -1; height:3px; border-radius:2px; background:var(--line); margin-top:8px; overflow:hidden; }
 .deck-bar-fill{ height:100%; background:var(--teal); border-radius:2px; transition:width .3s ease; }
-.mastered-badge{ position:absolute; top:12px; right:12px; font-size:15px; }
+.mastered-badge{ position:absolute; top:6px; right:8px; font-size:13px; }
 
 .level-chips{ display:flex; gap:8px; margin:18px 0 14px; }
 .level-chip{ flex:1; border:1px solid var(--line); background:var(--surface); border-radius:10px; padding:9px 6px; text-align:center; font-size:11.5px; font-weight:600; cursor:pointer; color:rgba(var(--ink-rgb),0.45); font-family:var(--font-body); }
@@ -291,3 +295,28 @@ button:focus-visible, .card:focus-visible{ outline:3px solid var(--marigold); ou
 .field em{ font-style:normal; font-weight:400; color:rgba(var(--ink-rgb),0.55); }
 .field textarea{ width:100%; padding:12px 14px; border:1px solid var(--line); border-radius:12px; background:var(--surface); font-size:16px; font-family:var(--font-body); color:var(--ink); resize:vertical; }
 .mine-form .quiz-row{ margin:4px 0 12px; }
+
+/* why? */
+.back-actions{ display:flex; gap:8px; justify-content:center; }
+.why-note, .reveal-why{ font-size:13.5px; line-height:1.5; color:rgba(var(--ink-rgb),0.8); background:var(--tint-gold); border:1px solid rgba(232,163,61,0.45); border-radius:12px; padding:10px 12px; margin-top:12px; }
+.reveal-why{ font-size:12.5px; margin-top:8px; }
+
+/* conversations */
+.talk-chips{ margin-top:0; }
+.talk-head{ margin:4px 0 10px; }
+.talk-title{ font-family:var(--font-display); font-weight:600; font-size:20px; }
+.talk-done{ color:var(--teal-dark); font-size:16px; }
+.talk-with{ font-size:12.5px; color:rgba(var(--ink-rgb),0.6); margin-top:2px; }
+.talk-tools{ display:flex; gap:8px; margin-bottom:12px; }
+.talk-tools .ctrl-btn{ display:inline-flex; align-items:center; justify-content:center; gap:6px; padding:10px; }
+.talk-tools .speaker-svg{ width:16px; height:16px; }
+.talk-lines{ display:flex; flex-direction:column; gap:8px; }
+.talk-line{ display:flex; flex-direction:column; gap:3px; max-width:86%; padding:10px 13px; border:1px solid var(--line); border-radius:16px; background:var(--surface); text-align:left; font-family:var(--font-body); cursor:pointer; }
+.talk-line.them{ align-self:flex-start; border-bottom-left-radius:4px; }
+.talk-line.you{ align-self:flex-end; background:var(--tint-teal); border-color:rgba(27,107,120,0.35); border-bottom-right-radius:4px; }
+.talk-line.playing{ border-color:var(--marigold); box-shadow:0 0 0 2px rgba(232,163,61,0.35); }
+.talk-who{ font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:0.04em; color:rgba(var(--ink-rgb),0.5); }
+.talk-es{ font-family:var(--font-display); font-weight:600; font-size:17px; line-height:1.3; }
+.talk-en{ font-size:13px; color:rgba(var(--ink-rgb),0.65); }
+.talk-hint{ font-size:12px; color:rgba(var(--ink-rgb),0.55); margin:12px 0 0; }
+.talk-finish{ width:100%; margin-top:12px; }

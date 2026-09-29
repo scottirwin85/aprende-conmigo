@@ -19,12 +19,12 @@ const Challenges = (function () {
 
   function blankDay() {
     return { answered: 0, correct: 0, listened: 0, flipped: 0, run: 0, bestRun: 0,
-             cleared: 0, perfect: 0, matched: 0, deckAnswers: {}, deckCorrect: {}, byType: {}, done: {}, allDone: false };
+             cleared: 0, perfect: 0, matched: 0, convos: 0, deckAnswers: {}, deckCorrect: {}, byType: {}, done: {}, allDone: false };
   }
   function blankStats() {
     return { days: {}, streak: 0, bestStreak: 0, lastDay: null, bestRun: 0,
              listenedTotal: 0, dailyDoneDays: 0, early: false, late: false, earned: {},
-             typedTotal: 0, spokenTotal: 0, matchGames: 0, bestMatch: 0, typesDone: {}, hardCorrect: 0 };
+             typedTotal: 0, spokenTotal: 0, matchGames: 0, bestMatch: 0, typesDone: {}, hardCorrect: 0, convosDone: {} };
   }
 
   // ---- daily challenges ----
@@ -43,6 +43,7 @@ const Challenges = (function () {
     { id: 'hear5', target: 5, text: () => 'Get 5 listening questions right', value: d => d.byType.listen || 0 },
     { id: 'build3', target: 3, text: () => 'Build 3 phrases word by word', value: d => d.byType.build || 0 },
     { id: 'scene3', target: 3, text: () => 'Answer 3 \u201cWhat would you say?\u201d questions', value: d => d.byType.scenario || 0 },
+    { id: 'convo1', target: 1, text: () => 'Read and listen to a conversation (Conversations tab)', value: d => d.convos },
     { id: 'match1', target: 1, text: () => 'Finish a Match the pairs game', value: d => d.matched },
   ];
 
@@ -99,6 +100,7 @@ const Challenges = (function () {
     { id: 'type50', icon: 'leaf', es: 'De memoria', en: 'By heart \u2014 type 50 phrases correctly', progress: c => [c.stats.typedTotal, 50] },
     { id: 'speak10', icon: 'flower', es: '\u00a1Qué bien hablas!', en: 'You speak so well \u2014 say 10 phrases correctly out loud', progress: c => [c.stats.spokenTotal, 10] },
     { id: 'hard50', icon: 'chili', es: 'Modo difícil', en: 'Hard mode \u2014 get 50 answers right on Difícil', progress: c => [c.stats.hardCorrect, 50] },
+    { id: 'talk5', icon: 'wave', es: 'Buena plática', en: 'A good chat \u2014 finish 5 conversations', progress: c => [Object.keys(c.stats.convosDone).length, 5] },
     { id: 'match10', icon: 'spiral', es: 'Memoria de elefante', en: 'A memory like an elephant \u2014 finish 10 match games', progress: c => [c.stats.matchGames, 10] },
     { id: 'alltypes', icon: 'sun', es: 'De todo un poco', en: 'A bit of everything \u2014 get every quiz question type right at least once', progress: c => [Object.keys(c.stats.typesDone).length, QUIZ_KINDS.length] },
   ];
@@ -150,6 +152,10 @@ const Challenges = (function () {
   function recordFlip(stats, now) { today(stats, now).flipped++; }
   function recordCleared(stats, now) { today(stats, now).cleared++; }
   function recordPerfect(stats, now) { today(stats, now).perfect++; }
+  function recordConvo(stats, now, key) {
+    today(stats, now).convos++;
+    stats.convosDone[key] = true;
+  }
   function recordMatch(stats, now, seconds) {
     today(stats, now).matched++;
     stats.matchGames++;
@@ -206,6 +212,7 @@ const Challenges = (function () {
     if (!raw || typeof raw !== 'object') return s;
     ['streak', 'bestStreak', 'bestRun', 'listenedTotal', 'dailyDoneDays', 'typedTotal', 'spokenTotal', 'matchGames', 'bestMatch', 'hardCorrect']
       .forEach(k => { s[k] = Math.floor(nonNeg(raw[k])); });
+    if (raw.convosDone && typeof raw.convosDone === 'object') Object.keys(raw.convosDone).forEach(k => { if (/^[a-z]+\/[a-z0-9]+$/.test(k) && raw.convosDone[k] === true) s.convosDone[k] = true; });
     if (raw.typesDone && typeof raw.typesDone === 'object') QUIZ_KINDS.forEach(t => { if (raw.typesDone[t] === true) s.typesDone[t] = true; });
     s.early = raw.early === true;
     s.late = raw.late === true;
@@ -218,7 +225,7 @@ const Challenges = (function () {
         const src = raw.days[k];
         if (!/^\d{4}-\d\d-\d\d$/.test(k) || !src || typeof src !== 'object') return;
         const d = blankDay();
-        ['answered', 'correct', 'listened', 'flipped', 'run', 'bestRun', 'cleared', 'perfect', 'matched'].forEach(f => { d[f] = Math.floor(nonNeg(src[f])); });
+        ['answered', 'correct', 'listened', 'flipped', 'run', 'bestRun', 'cleared', 'perfect', 'matched', 'convos'].forEach(f => { d[f] = Math.floor(nonNeg(src[f])); });
         ['deckAnswers', 'deckCorrect', 'byType'].forEach(f => {
           if (src[f] && typeof src[f] === 'object') Object.keys(src[f]).forEach(deck => { d[f][deck] = Math.floor(nonNeg(src[f][deck])); });
         });
@@ -237,6 +244,7 @@ const Challenges = (function () {
     ['bestStreak', 'bestRun', 'listenedTotal', 'dailyDoneDays', 'typedTotal', 'spokenTotal', 'matchGames', 'hardCorrect'].forEach(k => { m[k] = Math.max(m[k], inc[k]); });
     if (inc.bestMatch) m.bestMatch = m.bestMatch ? Math.min(m.bestMatch, inc.bestMatch) : inc.bestMatch;
     Object.keys(inc.typesDone).forEach(t => { m.typesDone[t] = true; });
+    Object.keys(inc.convosDone).forEach(k => { m.convosDone[k] = true; });
     m.early = m.early || inc.early;
     m.late = m.late || inc.late;
     Object.keys(inc.earned).forEach(id => { m.earned[id] = m.earned[id] ? Math.min(m.earned[id], inc.earned[id]) : inc.earned[id]; });
@@ -244,6 +252,6 @@ const Challenges = (function () {
   }
 
   return { dayKey, addDays, blankStats, clean, merge, recordAnswer, recordListen, recordFlip,
-           recordCleared, recordPerfect, recordMatch, currentStreak, dailyStatus, evaluate, achievementStatus,
+           recordCleared, recordPerfect, recordMatch, recordConvo, currentStreak, dailyStatus, evaluate, achievementStatus,
            ACHIEVEMENTS, DAILY };
 })();

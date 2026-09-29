@@ -272,7 +272,7 @@ const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++
     await pg.clock.install({ time: new Date('2026-09-29T' + t + ':00') });
     await pg.goto(URL);
     const g = await pg.textContent('#greeting');
-    ok(g.includes(es) && g.includes(en) && g.includes('40 phrases ready'), 'greeting at ' + t + ': ' + es + ' / ' + en);
+    ok(g.includes(es) && g.includes(en) && g.includes('110 phrases ready'), 'greeting at ' + t + ': ' + es + ' / ' + en);
     await pg.close();
   }
 
@@ -763,6 +763,69 @@ const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++
     await pm.evaluate(code => applyImport(code), code);
     ok(await pm.evaluate(() => myPhrases.length === 1 && state.progress['mine/¿Me pasas el control?'].box === 2), 'import brings My phrases and their progress');
     await mctx.close();
+  }
+
+  { // 31. new decks, Why? notes and conversations
+    const cctx = await newCtx();
+    await cctx.addInitScript(() => {
+      window.__said = [];
+      speechSynthesis.speak = u => { window.__said.push(u.text); setTimeout(() => u.onend && u.onend(), 5); };
+    });
+    const pc2 = await cctx.newPage();
+    pc2.on('pageerror', e => { console.log('PAGEERROR-C2', e.message); fails++; });
+    await pc2.goto(URL); await appReady(pc2);
+
+    const content = await pc2.evaluate(() => {
+      const problems = [];
+      BUILT_IN_DECKS.forEach(k => {
+        const d = DECKS[k], seen = new Set();
+        if (!d.color || !DECK_BADGES[d.icon]) problems.push(k + ': badge');
+        if (d.levels.length !== 3) problems.push(k + ': levels');
+        d.levels.forEach(l => { if (l.cards.length !== 10) problems.push(k + ' ' + l.label + ': ' + l.cards.length + ' cards');
+          l.cards.forEach(c => { if (!c.es || !c.en || !c.pron || !ICONS[c.icon]) problems.push(k + ': incomplete ' + c.es);
+            if (seen.has(c.es)) problems.push(k + ': duplicate ' + c.es); seen.add(c.es); }); });
+      });
+      const original = ['everyday', 'love', 'family', 'food'].reduce((n, k) => n + deckCards(k).filter(c => c.why).length, 0);
+      const convos = Object.keys(CONVERSATIONS).map(k => [k, CONVERSATIONS[k]]);
+      convos.forEach(([k, list]) => { if (!DECKS[k]) problems.push('conversation for unknown deck ' + k);
+        list.forEach(cv => { if (!cv.id || !cv.title || cv.lines.length < 4 || cv.lines.some(l => !['you','them'].includes(l[0]) || !l[1] || !l[2])) problems.push('conversation ' + k + '/' + cv.id); }); });
+      return { decks: BUILT_IN_DECKS.length, cards: BUILT_IN_DECKS.reduce((n, k) => n + deckCards(k).length, 0), original, problems,
+               convoDecks: convos.filter(([, l]) => l.length).length };
+    });
+    ok(content.decks === 11 && content.cards === 330, '11 decks, 330 phrases (' + content.cards + ')');
+    ok(content.problems.length === 0, 'every deck and card is complete: ' + content.problems.slice(0, 5).join('; '));
+    ok(content.original === 120, 'all 120 original phrases have a Why? note');
+    ok(content.convoDecks === 11, 'every deck has a conversation');
+
+    // Why? on the back of a flashcard
+    await pc2.evaluate(() => { const cards = activeCards(); state.order = [cards.findIndex(c => c.es === '¿Qué onda?')]; state.idx = 0; render(); });
+    ok(await pc2.isHidden('#whyNote'), 'Why? note hidden until asked');
+    await pc2.click('.card-word'); await pc2.click('#whyBtn');
+    ok(await pc2.isVisible('#whyNote') && (await pc2.textContent('#whyNote')).includes('wave'), 'Why? explains the phrase');
+    ok(await pc2.evaluate(() => document.getElementById('flipCard').classList.contains('flipped')), 'tapping Why? keeps the card flipped');
+    // Why? in quiz answers
+    await pc2.evaluate(() => { state.mode = 'quiz'; state.quizType = 'reverse'; state.practice = true; resetDeckState(); const cards = activeCards(); state.order = [cards.findIndex(c => c.es === '¿Qué onda?')]; render(); });
+    await pc2.click('#optsWrap .opt-btn:text-is("¿Qué onda?")');
+    ok((await pc2.textContent('.quiz-reveal')).includes('Why?'), 'quiz answers include the Why? note');
+
+    // Conversations tab
+    await pc2.click('#modeTalk');
+    ok((await pc2.$$('.talk-line')).length === 6 && (await pc2.textContent('.talk-title')) === 'Coming home', 'Conversations shows the deck\'s first dialogue');
+    ok(await pc2.isHidden('.talk-en'), 'English hidden by default');
+    await pc2.click('#talkEn');
+    ok(await pc2.isVisible('.talk-en'), 'Show English reveals translations');
+    await pc2.evaluate(() => { __said.length = 0; });
+    await pc2.click('#talkPlay');
+    await pc2.waitForFunction(() => __said.length === 6, null, { timeout: 5000 });
+    ok(await pc2.evaluate(() => __said[0] === 'Ya llegué.' && __said[5] === 'Órale, no hay bronca.'), 'Play all reads every line in order');
+    await pc2.click('.talk-line >> nth=2');
+    ok(await pc2.evaluate(() => __said[__said.length - 1].startsWith('Bien, pero')), 'tapping a line plays it');
+    await pc2.click('#talkFinish');
+    const talk = await pc2.evaluate(() => ({ done: state.stats.convosDone['everyday/home'], today: state.stats.days[Challenges.dayKey(Date.now())].convos, title: document.querySelector('.talk-title').textContent }));
+    ok(talk.done && talk.today === 1 && talk.title.startsWith('Weekend plans'), 'finishing records it and moves to the next conversation');
+    await pc2.click('.deck-btn:has-text("Celebrations")');
+    ok((await pc2.textContent('.talk-title')).startsWith('A birthday'), 'each deck has its own conversations');
+    await cctx.close();
   }
 
   await browser.close();

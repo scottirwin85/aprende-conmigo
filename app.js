@@ -19,6 +19,8 @@ const freshState = () => ({
   difficulty: 'normal', // one of DIFFICULTY_IDS (quiz.js); saved per profile
   speakInMix: false, // include "say it out loud" questions in Mixed
   q: null,           // {key, type}: the current quiz question's type, fixed while it's on screen
+  talkPick: {},      // deckKey -> which conversation is showing
+  talkEnglish: false, // show the English under each conversation line
   practice: false,   // true = the session includes cards that aren't due yet
   idx: 0,
   flipped: false,
@@ -152,8 +154,8 @@ function speak(text){
   }
   phoneSpeak(text);
 }
-function phoneSpeak(text){
-  if(!('speechSynthesis' in window)) return;
+function phoneSpeak(text, onEnd){
+  if(!('speechSynthesis' in window)){ if(onEnd) onEnd(); return; }
   text = text.replace(/\s*\/\s*/g, ', '); // "orgulloso / orgullosa" -> read both with a pause, not "slash"
   if(!voices.length) loadVoices();
   const u = new SpeechSynthesisUtterance(text);
@@ -161,6 +163,7 @@ function phoneSpeak(text){
   const mx = voices.find(v => v.lang === 'es-MX' || v.lang === 'es_MX') || voices.find(v => v.lang && v.lang.startsWith('es'));
   if(mx) u.voice = mx;
   u.rate = level().speechRate; // slower on Fácil, natural speed on Difícil
+  if(onEnd){ u.onend = onEnd; u.onerror = onEnd; }
   window.speechSynthesis.cancel();
   window.speechSynthesis.speak(u);
 }
@@ -413,9 +416,9 @@ function renderDecks(){
     btn.innerHTML =
       (mastered ? '<div class="mastered-badge" aria-hidden="true">✨</div>' : '') +
       deckBadge(d) +
-      '<div class="deck-name">' + esc(d.name) + '</div>' +
-      '<div class="deck-level">' + label + '</div>' +
-      '<div class="deck-progress">' + totals.known + '/' + totals.total + ' known</div>' +
+      '<div class="deck-info"><div class="deck-name">' + esc(d.name) + '</div>' +
+      '<div class="deck-meta"><span class="deck-level">' + label + '</span>' +
+      '<span class="deck-progress">' + totals.known + '/' + totals.total + '</span></div></div>' +
       '<div class="deck-bar"><div class="deck-bar-fill" style="width:' + pct + '%"></div></div>';
     btn.onclick = () => selectDeck(key);
     el.appendChild(btn);
@@ -452,6 +455,7 @@ function renderLevelChips(){
 function renderModes(){
   document.getElementById('modeFlash').classList.toggle('active', state.mode==='flash');
   document.getElementById('modeQuiz').classList.toggle('active', state.mode==='quiz');
+  document.getElementById('modeTalk').classList.toggle('active', state.mode==='talk');
 }
 
 function renderStats(){
@@ -556,6 +560,7 @@ function renderEnd(){
 
 function renderStage(){
   if(state.levelUp && state.levelUp.deck === state.deck) renderLevelUp();
+  else if(state.mode === 'talk') renderTalk(); // conversations aren't tied to due cards either
   else if(state.mode === 'quiz' && state.quizType === 'match') renderMatch(); // not tied to due cards
   else if(state.idx >= state.order.length) renderEnd();
   else if(state.mode === 'flash') renderFlash();
@@ -585,13 +590,15 @@ function renderFlash(){
         iconSvg(card.icon) +
         '<div class="card-word" style="font-size:20px;">' + esc(card.en) + '</div>' +
         '<div class="card-sub">' + esc(card.es) + (card.pron ? ' · ' + esc(card.pron) : '') + '</div>' +
-        '<button class="share-btn" id="shareBtn">Share this phrase</button>' +
+        '<div class="back-actions">' + (card.why ? '<button class="share-btn" id="whyBtn">Why?</button>' : '') +
+          '<button class="share-btn" id="shareBtn">Share</button></div>' +
       '</div>' +
     '</div></div>' +
     '<div class="card-controls">' +
       '<button class="ctrl-btn" id="skipBtn">Not yet</button>' +
       '<button class="ctrl-btn good" id="knowBtn">I know this</button>' +
     '</div>' +
+    (card.why ? '<div class="why-note" id="whyNote" hidden><b>Why?</b> ' + esc(card.why) + '</div>' : '') +
     (state.notice ? '<div class="quiz-note" role="status">' + esc(state.notice) + '</div>' : '');
   state.notice = '';
 
@@ -611,6 +618,11 @@ function renderFlash(){
   document.getElementById('soundBtn').onclick = (e) => { e.stopPropagation(); hearCard(card.es); };
   document.getElementById('soundBtnBack').onclick = (e) => { e.stopPropagation(); hearCard(card.es); };
   document.getElementById('shareBtn').onclick = (e) => { e.stopPropagation(); sharePhrase(card); };
+  if(card.why) document.getElementById('whyBtn').onclick = (e) => {
+    e.stopPropagation();
+    const note = document.getElementById('whyNote');
+    note.hidden = !note.hidden;
+  };
   document.getElementById('skipBtn').onclick = () => {
     recordAnswer(card._id, false);
     // show it again later in this session, unless it's already queued again
@@ -749,8 +761,61 @@ function render(){
 
 document.getElementById('modeFlash').onclick = () => { state.mode='flash'; startSession(false); };
 document.getElementById('modeQuiz').onclick = () => { state.mode='quiz'; startSession(false); };
+document.getElementById('modeTalk').onclick = () => { state.mode='talk'; startSession(false); };
 document.getElementById('exportBtn').onclick = () => { state.syncPanel = state.syncPanel === 'export' ? null : 'export'; renderSync(); };
 document.getElementById('importBtn').onclick = () => { state.syncPanel = state.syncPanel === 'import' ? null : 'import'; renderSync(); };
+
+// ---- Conversations (conversations.js): short dialogues for the current deck ----
+let talkToken = 0; // bumps to cancel "Play all" when something else plays or the view changes
+function renderTalk(){
+  talkToken++;
+  const stage = document.getElementById('stage');
+  const list = CONVERSATIONS[state.deck] || [];
+  if(!list.length){
+    stage.innerHTML = '<div class="done"><p>No conversations for this deck yet. Try Everyday, Love, Family or Food.</p></div>';
+    return;
+  }
+  const pick = Math.min(state.talkPick[state.deck] || 0, list.length - 1);
+  const convo = list[pick];
+  const key = state.deck + '/' + convo.id;
+  const done = !!state.stats.convosDone[key];
+  stage.innerHTML =
+    (list.length > 1 ? '<div class="panel-chips talk-chips">' + list.map((c, i) => '<button class="level-chip' + (i === pick ? ' active' : '') + '" data-i="' + i + '">' + esc(c.title) + '</button>').join('') + '</div>' : '') +
+    '<div class="talk-head"><div class="talk-title">' + esc(convo.title) + (done ? ' <span class="talk-done">\u2713</span>' : '') + '</div>' +
+      '<div class="talk-with">With: ' + esc(convo.them) + '</div></div>' +
+    '<div class="talk-tools"><button class="ctrl-btn" id="talkPlay">' + SPEAKER_SVG + ' Play all</button>' +
+      '<button class="ctrl-btn" id="talkEn">' + (state.talkEnglish ? 'Hide English' : 'Show English') + '</button></div>' +
+    '<div class="talk-lines">' + convo.lines.map((l, i) =>
+      '<button class="talk-line ' + l[0] + '" data-i="' + i + '">' +
+        '<span class="talk-who">' + (l[0] === 'you' ? 'Tú' : esc(convo.them.split(' \u00b7 ')[0])) + '</span>' +
+        '<span class="talk-es">' + esc(l[1]) + '</span>' +
+        '<span class="talk-en"' + (state.talkEnglish ? '' : ' hidden') + '>' + esc(l[2]) + '</span>' +
+      '</button>').join('') + '</div>' +
+    '<p class="talk-hint">Tap a line to hear it. Try reading the other part out loud before you tap.</p>' +
+    '<button class="ctrl-btn primary talk-finish" id="talkFinish">' + (done ? 'Read it again \u2014 next conversation' : 'I\u2019ve read it \u2713') + '</button>';
+  stage.querySelectorAll('.talk-chips .level-chip').forEach(b => { b.onclick = () => { state.talkPick[state.deck] = +b.dataset.i; renderTalk(); }; });
+  const lines = [...stage.querySelectorAll('.talk-line')];
+  const mark = i => lines.forEach((el, k) => el.classList.toggle('playing', k === i));
+  lines.forEach((el, i) => { el.onclick = () => { talkToken++; mark(i); speak(convo.lines[i][1]); }; });
+  document.getElementById('talkEn').onclick = () => { state.talkEnglish = !state.talkEnglish; renderTalk(); };
+  document.getElementById('talkPlay').onclick = () => {
+    const token = ++talkToken;
+    const step = i => {
+      if(token !== talkToken) return;
+      if(i >= convo.lines.length){ mark(-1); return; }
+      mark(i);
+      phoneSpeak(convo.lines[i][1], () => setTimeout(() => step(i + 1), 350));
+    };
+    step(0);
+  };
+  document.getElementById('talkFinish').onclick = () => {
+    talkToken++;
+    if(!done){ Challenges.recordConvo(state.stats, Date.now(), key); afterChallengeEvent(); }
+    state.talkPick[state.deck] = (pick + 1) % list.length;
+    renderTalk();
+    window.scrollTo(0, document.getElementById('modeFlash').getBoundingClientRect().top + window.scrollY - 10);
+  };
+}
 
 // ---- My phrases: your own cards, saved per profile as a small deck ----
 let myPhrases = []; // [{es, en, pron, ctx}]
