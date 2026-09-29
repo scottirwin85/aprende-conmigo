@@ -54,6 +54,13 @@ It changes how questions are asked, never how often cards come back.
 | Mixed mode | harder types come later | as above | harder types come sooner |
 | Match the pairs | 4 pairs | 5 pairs | 6 pairs |
 
+## Search
+
+The magnifying glass at the top searches every phrase (all decks and My
+phrases) in Spanish or English — accents and ¿¡ are optional. Tap a result to
+see how to say it, its Why? note and your progress, then hear it, share it, or
+practise it straight away.
+
 ## Your progress
 
 **Your progress** (in the menu under your name) shows your streak, a 5-week

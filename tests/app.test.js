@@ -870,6 +870,34 @@ const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++
     await gctx.close();
   }
 
+  { // 33. search
+    const sctx = await newCtx(); const ps = await sctx.newPage();
+    ps.on('pageerror', e => { console.log('PAGEERROR-S2', e.message); fails++; });
+    await ps.goto(URL); await appReady(ps);
+    await ps.click('#searchBtn');
+    ok((await ps.textContent('.panel-title')) === 'Search' && (await ps.textContent('#searchHint')).includes('accents are optional'), 'search opens from the header');
+    const first = async q => { await ps.fill('#searchInput', q); await ps.waitForTimeout(250); return ps.evaluate(() => [...document.querySelectorAll('.search-row .voice-es')].map(e => e.textContent)); };
+    let r = await first('extrano');
+    ok(r[0] === 'Te extraño' && r.includes('Los extraño mucho'), 'Spanish search ignores accents: ' + r.slice(0, 3).join(', '));
+    r = await first('miss you');
+    ok(r.includes('Te extraño'), 'English search works');
+    r = await first('QUE ONDA');
+    ok(r[0] === '¿Qué onda?', 'exact phrase comes first, ignoring case and ¿?');
+    r = await first('zzzz');
+    ok(r.length === 0 && (await ps.textContent('#searchHint')).includes('No phrases match'), 'no results says so');
+    r = await first('aguinaldo');
+    ok(r[0] === 'El aguinaldo', 'finds phrases in locked levels of other decks');
+    await ps.click('.search-main');
+    ok(await ps.isVisible('.search-detail') && (await ps.textContent('.search-status')).includes('locked level') && (await ps.textContent('.search-detail')).includes('Why?'),
+       'tapping a result shows pronunciation, Why? and where it is');
+    await ps.click('[data-act="practise"]');
+    ok(await ps.isVisible('#main') && await ps.evaluate(() => activeCards().length === 1 && activeCards()[0].es === 'El aguinaldo'), 'Practise opens a round with that phrase');
+    ok((await ps.textContent('#reviewBanner')).includes('from your search'), 'the round is labelled');
+    await ps.click('#searchBtn');
+    ok((await ps.inputValue('#searchInput')) === 'aguinaldo', 'search remembers the last query');
+    await sctx.close();
+  }
+
   await browser.close();
   console.log(fails ? fails + ' FAILED' : 'ALL PASSED');
   process.exitCode = fails ? 1 : 0;

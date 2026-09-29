@@ -19,7 +19,8 @@ const freshState = () => ({
   difficulty: 'normal', // one of DIFFICULTY_IDS (quiz.js); saved per profile
   speakInMix: false, // include "say it out loud" questions in Mixed
   q: null,           // {key, type}: the current quiz question's type, fixed while it's on screen
-  tricky: null,      // card ids, while practising "trickiest phrases" from the Progress page
+  tricky: null,      // card ids, while practising a hand-picked round (trickiest phrases, or a search result)
+  trickyLabel: '',   // what that round is, for its banner
   talkPick: {},      // deckKey -> which conversation is showing
   talkEnglish: false, // show the English under each conversation line
   practice: false,   // true = the session includes cards that aren't due yet
@@ -488,7 +489,7 @@ function renderBanner(){
       '</div>';
   }
   if(state.tricky){
-    html += '<div class="practice-banner">Practising your trickiest phrases. ' +
+    html += '<div class="practice-banner">' + esc(state.trickyLabel || 'Practising your trickiest phrases.') + ' ' +
       '<button class="link-btn" id="exitTrickyBtn">Back to your decks</button></div>';
   }
   if(state.practice && !state.tricky){
@@ -779,6 +780,7 @@ function render(){
 
 document.getElementById('modeFlash').onclick = () => { state.mode='flash'; startSession(false); };
 document.getElementById('modeQuiz').onclick = () => { state.mode='quiz'; startSession(false); };
+document.getElementById('searchBtn').onclick = () => renderSearchPanel();
 document.getElementById('modeTalk').onclick = () => { state.mode='talk'; startSession(false); };
 document.getElementById('exportBtn').onclick = () => { state.syncPanel = state.syncPanel === 'export' ? null : 'export'; renderSync(); };
 document.getElementById('importBtn').onclick = () => { state.syncPanel = state.syncPanel === 'import' ? null : 'import'; renderSync(); };
@@ -923,6 +925,86 @@ function renderMinePanel(editIndex){
   });
 }
 
+// ---- Search: every phrase, in Spanish or English, accents optional ----
+let lastSearch = '';
+function searchPhrases(query){
+  const q = plainText(query);
+  if(q.length < 2) return [];
+  const english = s => String(s).toLowerCase().replace(/[^a-z0-9' ]+/g, ' ').replace(/\s+/g, ' ').trim();
+  const words = s => ' ' + s + ' ';
+  const hits = [];
+  Object.keys(DECKS).forEach(k => deckCards(k).forEach(c => {
+    const es = plainText(c.es), en = english(c.en);
+    let score = null;
+    if(es === q) score = 0;
+    else if(words(es).includes(' ' + q)) score = 1;          // a Spanish word starts with it
+    else if(es.includes(q)) score = 2;
+    else if(words(en).includes(' ' + q)) score = 3;          // an English word starts with it
+    else if(en.includes(q)) score = 4;
+    if(score !== null) hits.push({ card: c, deck: k, score });
+  }));
+  return hits.sort((a, b) => a.score - b.score || a.card.es.length - b.card.es.length).slice(0, 40);
+}
+function cardStatus(card, deckKey){
+  const rec = cardRecord(card._id);
+  const li = DECKS[deckKey].levels.findIndex(l => l.cards.some(c => c.es === card.es));
+  const where = DECKS[deckKey].name + (DECKS[deckKey].levels.length > 1 ? ' · ' + DECKS[deckKey].levels[li].label : '');
+  const locked = li >= unlockedLevelCount(deckKey);
+  const state_ = !rec.due && !rec.box ? 'not started yet' : rec.box >= MASTER_BOX ? 'mastered · ' + dueLabel(card._id)
+    : rec.box >= LEVEL_UNLOCK_BOX ? 'known · ' + dueLabel(card._id) : 'learning · ' + dueLabel(card._id);
+  return where + (locked ? ' (locked level)' : '') + ' — ' + state_;
+}
+function renderSearchPanel(){
+  showPanel('Search',
+    '<input class="type-input search-input" id="searchInput" type="search" placeholder="Search Spanish or English…" autocomplete="off" autocapitalize="off" spellcheck="false">' +
+    '<div class="search-hint" id="searchHint"></div><ul class="voice-list search-results" id="searchResults"></ul>');
+  const input = document.getElementById('searchInput');
+  input.value = lastSearch;
+  let timer = null;
+  input.oninput = () => { clearTimeout(timer); timer = setTimeout(() => { lastSearch = input.value; showSearchResults(input.value); }, 120); };
+  showSearchResults(lastSearch);
+  input.focus();
+}
+function showSearchResults(query){
+  const list = document.getElementById('searchResults'), hint = document.getElementById('searchHint');
+  const hits = searchPhrases(query);
+  hint.textContent = plainText(query).length < 2 ? 'Type a word in Spanish or English — accents are optional.'
+    : hits.length ? hits.length + (hits.length === 40 ? '+' : '') + ' phrase' + (hits.length === 1 ? '' : 's') : 'No phrases match “' + query.trim() + '”.';
+  list.innerHTML = hits.map((h, i) =>
+    '<li class="search-row" data-i="' + i + '">' +
+      '<button class="search-main" data-i="' + i + '" aria-expanded="false">' + deckBadge(DECKS[h.deck]) +
+        '<span class="voice-text"><span class="voice-es">' + esc(h.card.es) + '</span><span class="voice-en">' + esc(stripNote(h.card.en)) + '</span></span></button>' +
+      '<div class="search-detail" hidden>' +
+        (h.card.pron ? '<div class="search-pron">' + esc(h.card.pron) + '</div>' : '') +
+        (stripNote(h.card.en) !== h.card.en ? '<div class="search-full-en">' + esc(h.card.en) + '</div>' : '') +
+        (h.card.why ? '<div class="why-note"><b>Why?</b> ' + esc(h.card.why) + '</div>' : '') +
+        '<div class="search-status">' + esc(cardStatus(h.card, h.deck)) + '</div>' +
+        '<div class="quiz-row"><button class="ctrl-btn" data-act="hear" data-i="' + i + '">' + SPEAKER_SVG + ' Hear it</button>' +
+          '<button class="ctrl-btn" data-act="share" data-i="' + i + '">Share</button>' +
+          '<button class="ctrl-btn primary" data-act="practise" data-i="' + i + '">Practise</button></div>' +
+      '</div></li>').join('');
+  list.querySelectorAll('.search-main').forEach(b => {
+    b.onclick = () => {
+      const detail = b.parentNode.querySelector('.search-detail');
+      detail.hidden = !detail.hidden;
+      b.setAttribute('aria-expanded', String(!detail.hidden));
+    };
+  });
+  list.querySelectorAll('[data-act]').forEach(b => {
+    const h = hits[+b.dataset.i];
+    b.onclick = () => {
+      if(b.dataset.act === 'hear') return hearCard(h.card.es);
+      if(b.dataset.act === 'share') return sharePhrase(h.card);
+      state.tricky = [h.card._id];
+      state.trickyLabel = 'Practising “' + h.card.es + '” from your search.';
+      state.practice = true; state.levelUp = null;
+      if(state.mode === 'talk') state.mode = 'flash';
+      resetDeckState();
+      closePanel();
+    };
+  });
+}
+
 // ---- Progress page ----
 const DAY_MS = 24 * 60 * 60 * 1000;
 const fmtDay = t => new Date(t).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
@@ -1007,6 +1089,7 @@ function renderProgressPanel(){
   const practise = document.getElementById('practiseTricky');
   if(practise) practise.onclick = () => {
     state.tricky = tricky.map(x => x.card._id);
+    state.trickyLabel = 'Practising your trickiest phrases.';
     state.practice = true; state.levelUp = null;
     if(state.mode === 'talk') state.mode = 'flash';
     resetDeckState();
