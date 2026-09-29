@@ -125,11 +125,19 @@ const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++
   ok(await page.evaluate(() => Object.getPrototypeOf(state.progress) === Object.prototype && !('x' in state.progress)), 'no prototype pollution / junk ids');
 
   // 10. legacy localStorage migration + fresh import into new context
-  const ctx2 = await newCtx(); const p2 = await ctx2.newPage();
+  const ctx2 = await newCtx();
+  // Old-format progress is in place before the app ever loads (once only, not on later reloads).
+  await ctx2.addInitScript(() => {
+    if (!localStorage.getItem('seededLegacy')) {
+      localStorage.setItem('seededLegacy', '1');
+      localStorage.setItem('progress', JSON.stringify({'everyday:0:0': {box: 3, due: 1e15}, 'love:2:9': {box:1, due: 5}}));
+      localStorage.setItem('streak', '7');
+    }
+  });
+  const p2 = await ctx2.newPage();
   p2.on('pageerror', e => { console.log('PAGEERROR2', e.message); fails++; });
-  await p2.goto(URL);
-  await p2.evaluate(() => { localStorage.setItem('progress', JSON.stringify({'everyday:0:0': {box: 3, due: 1e15}, 'love:2:9': {box:1, due: 5}})); localStorage.setItem('streak','7'); });
-  await p2.reload(); await appReady(p2);
+  await p2.goto(URL); await appReady(p2);
+  await p2.waitForFunction(() => { try { return !!JSON.parse(localStorage.getItem('progress'))['everyday/¿Qué onda?']; } catch (e) { return false; } });
   const mig = await p2.evaluate(() => JSON.parse(localStorage.getItem('progress')));
   ok(mig['everyday/¿Qué onda?'] && mig['everyday/¿Qué onda?'].box === 3 && mig['love/Para siempre y un día más'], 'legacy positional ids migrated');
   await p2.click('#importBtn'); await p2.fill('#importBox', code); await p2.click('#applyImportBtn');
@@ -557,8 +565,9 @@ const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++
   ok(!(await pd.$('.face-front .card-sub')) && (await pd.textContent('.face-back')).length > 0, 'Difícil: pronunciation hidden on the front (still on the back)');
   ok(await pd.evaluate(() => JSON.parse(localStorage.getItem('prefs')).difficulty) === 'hard', 'difficulty is saved');
   await pd.reload(); await appReady(pd);
-  await pd.waitForSelector('#difficulty .diff-btn.active');
-  ok(await pd.evaluate(() => state.difficulty) === 'hard', 'difficulty survives a restart');
+  await appReady(pd);
+  const kept = await pd.waitForFunction(() => state.difficulty === 'hard', null, { timeout: 5000 }).then(() => true, () => false);
+  ok(kept && await pd.isVisible('.diff-btn[data-diff="hard"].active'), 'difficulty survives a restart');
 
   const dq = (diff, type, es) => pd.evaluate(([diff, type, es]) => {
     state.difficulty = diff; state.deck = 'love'; state.levelByDeck.love = 0; state.quizType = type; state.mode = 'quiz'; state.practice = true;
