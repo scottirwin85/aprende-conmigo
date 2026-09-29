@@ -225,3 +225,10 @@ button:focus-visible, .card:focus-visible{ outline:3px solid var(--marigold); ou
 .match-tile.matched{ border-color:var(--teal); background:#EFF6F5; color:var(--teal-dark); opacity:0.55; cursor:default; }
 .match-tile.nope{ border-color:var(--plum); background:#F7ECF1; }
 .match-done{ padding:22px 10px 6px; }
+
+/* difficulty */
+.difficulty{ display:flex; align-items:center; gap:6px; margin:-6px 0 4px; }
+.difficulty-label{ font-size:13px; font-weight:600; color:rgba(43,35,32,0.6); margin-right:4px; }
+.diff-btn{ flex:1; padding:8px 6px; border:1px solid var(--line); border-radius:10px; background:#fff; font-family:var(--font-body); font-size:13px; font-weight:600; color:rgba(43,35,32,0.6); cursor:pointer; }
+.diff-btn.active{ border-color:var(--teal); background:#EFF6F5; color:var(--teal-dark); }
+.difficulty-blurb{ font-size:11.5px; color:rgba(43,35,32,0.55); line-height:1.4; margin:0 0 14px; }

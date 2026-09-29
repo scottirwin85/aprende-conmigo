@@ -30,6 +30,21 @@ chooses for you and gets harder as a card gets stronger:
 - **Say it out loud** uses the phone's speech recognition; it's experimental and may not work on every device.
 - **Match the pairs** is a timed warm-up game. It doesn't change when cards come back.
 
+## Difficulty (Nivel)
+
+Pick **Fácil**, **Normal** or **Difícil** above the cards; each profile keeps its own choice.
+It changes how questions are asked, never how often cards come back.
+
+| | Fácil | Normal | Difícil |
+|---|---|---|---|
+| Pronunciation guide | shown | shown | hidden until the answer |
+| Choices per question | 3 | 4 | 5 |
+| Audio | slower | normal | natural speed |
+| Typing | accents and a couple of typos forgiven | accents and a small typo forgiven | accents and spelling must be right |
+| Build the phrase | the phrase's words | the phrase's words | plus 2 decoy words |
+| Mixed mode | harder types come later | as above | harder types come sooner |
+| Match the pairs | 4 pairs | 5 pairs | 6 pairs |
+
 ## Profiles
 
 The first time it opens, the app asks for a name (and an optional 4-digit PIN).

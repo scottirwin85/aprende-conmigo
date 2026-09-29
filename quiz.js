@@ -21,6 +21,31 @@ const QUIZ_TYPES = [
 ];
 const QUIZ_TYPE_IDS = QUIZ_TYPES.map(t => t[0]);
 
+// Difficulty changes how questions are asked, never how often cards come back.
+// tiers: the question types Mixed uses for a card in box 0, box 1, boxes 2-3, and box 4+.
+const DIFFICULTY = {
+  easy: {
+    label: 'Fácil', en: 'Easy', blurb: 'Pronunciation shown \u00b7 3 choices \u00b7 slower audio \u00b7 spelling forgiven',
+    choices: 3, speechRate: 0.75, typos: len => len >= 8 ? 3 : len >= 4 ? 2 : 1, accentsCount: false,
+    showPron: true, decoys: 0, matchPairs: 4,
+    tiers: [['recognize'], ['recognize', 'listen'], ['recognize', 'reverse', 'listen', 'gap', 'scenario'], ['reverse', 'listen', 'gap', 'scenario', 'build']],
+  },
+  normal: {
+    label: 'Normal', en: 'Normal', blurb: 'Pronunciation shown \u00b7 4 choices \u00b7 accents and small typos forgiven',
+    choices: 4, speechRate: 0.92, typos: len => len >= 8 ? 2 : len >= 4 ? 1 : 0, accentsCount: false,
+    showPron: true, decoys: 0, matchPairs: 5,
+    tiers: [['recognize'], ['recognize', 'reverse', 'listen'], ['reverse', 'listen', 'gap', 'scenario', 'build'], ['type', 'build', 'scenario', 'gap', 'listen']],
+  },
+  hard: {
+    label: 'Difícil', en: 'Hard', blurb: 'No pronunciation hints \u00b7 5 choices \u00b7 natural-speed audio \u00b7 accents and spelling must be right',
+    choices: 5, speechRate: 1.0, typos: () => 0, accentsCount: true,
+    showPron: false, decoys: 2, matchPairs: 6,
+    tiers: [['recognize', 'reverse'], ['reverse', 'listen', 'gap'], ['type', 'build', 'scenario', 'listen'], ['type', 'build', 'scenario']],
+  },
+};
+const DIFFICULTY_IDS = Object.keys(DIFFICULTY);
+const level = () => DIFFICULTY[state.difficulty] || DIFFICULTY.normal;
+
 const canHear = () => typeof window !== 'undefined' && 'speechSynthesis' in window;
 const Recognition = () => (typeof window !== 'undefined' && (window.SpeechRecognition || window.webkitSpeechRecognition)) || null;
 
@@ -57,8 +82,10 @@ function spanishVariants(es){
   return [lw.concat(rw.slice(1)).join(' '), lw.slice(0, -1).concat(rw).join(' ')].map(s => s.trim());
 }
 
-// Typed or spoken answer vs the card. Forgives accents, punctuation and a small typo.
-function checkAnswer(input, card){
+// Typed or spoken answer vs the card. Punctuation never matters; how many typos
+// are forgiven, and whether accents count, depend on the difficulty.
+function checkAnswer(input, card, diff){
+  const d = diff || level();
   const said = plainText(input);
   if(!said) return { ok: false };
   let best = null;
@@ -67,12 +94,14 @@ function checkAnswer(input, card){
     const dist = editDistance(said, target);
     if(!best || dist < best.dist) best = { v, target, dist };
   });
-  const allowed = best.target.length >= 8 ? 2 : best.target.length >= 4 ? 1 : 0;
+  const allowed = d.typos(best.target.length);
   if(best.dist === 0){
     const accentsRight = tidyText(input) === tidyText(best.v);
-    return { ok: true, note: accentsRight ? '' : 'Right! With its accents it’s written: ' + best.v };
+    if(accentsRight) return { ok: true, note: '' };
+    if(d.accentsCount) return { ok: false, note: 'So close \u2014 on Difícil the accents count: ' + best.v };
+    return { ok: true, note: 'Right! With its accents it\u2019s written: ' + best.v };
   }
-  if(best.dist <= allowed) return { ok: true, note: 'Close enough! It’s spelled: ' + best.v };
+  if(best.dist <= allowed) return { ok: true, note: 'Close enough! It\u2019s spelled: ' + best.v };
   return { ok: false, similarity: 1 - best.dist / Math.max(best.target.length, said.length) };
 }
 
@@ -122,19 +151,18 @@ function pickQuizType(card, pool){
   const chosen = state.quizType;
   if(chosen !== 'mixed') return canUseType(chosen, card, pool) ? chosen : 'recognize';
   const box = cardRecord(card._id).box;
-  const tier = box === 0 ? ['recognize']
-    : box === 1 ? ['recognize', 'reverse', 'listen']
-    : box <= 3 ? ['reverse', 'listen', 'gap', 'scenario', 'build']
-    : ['type', 'build', 'scenario', 'gap', 'listen'].concat(state.speakInMix ? ['speak'] : []);
+  const tiers = level().tiers;
+  let tier = box === 0 ? tiers[0] : box === 1 ? tiers[1] : box <= 3 ? tiers[2] : tiers[3];
+  if(box >= 2 && state.speakInMix) tier = tier.concat(['speak']);
   const usable = tier.filter(t => canUseType(t, card, pool));
   return usable.length ? shuffled(usable)[0] : 'recognize';
 }
 
-// Three wrong options whose meaning doesn't overlap the right one.
+// Wrong options (2-4, by difficulty) whose meaning doesn't overlap the right one.
 function distractorCards(card, pool){
-  const out = [];
+  const out = [], want = level().choices - 1;
   shuffled(pool.filter(c => c !== card)).forEach(c => {
-    if(out.length >= 3 || c.es === card.es || stripNote(c.en) === stripNote(card.en)) return;
+    if(out.length >= want || c.es === card.es || stripNote(c.en) === stripNote(card.en)) return;
     if(meaningsOverlap(c.en, card.en) || out.some(o => meaningsOverlap(o.en, c.en))) return;
     out.push(c);
   });
@@ -162,7 +190,7 @@ function renderQuestion(type, card, cardIdx, cards){
   const head = '<div class="quiz-prompt">' + PROMPTS[type] + ' <span style="opacity:0.6;">(' + dueLabel(card._id) + ')</span></div>';
   const english = '<div class="quiz-en">' + esc(stripNote(card.en)) + '</div>';
   const spanishWord = '<div class="quiz-word">' + esc(card.es) + ' ' + quizSoundButton('quizSoundBtn') + '</div>' +
-    '<div class="card-sub" style="opacity:0.55;font-style:italic;margin-top:2px;">' + esc(card.pron) + '</div>';
+    (level().showPron ? '<div class="card-sub" style="opacity:0.55;font-style:italic;margin-top:2px;">' + esc(card.pron) + '</div>' : '');
   let body = '', after = null;
 
   if(type === 'recognize' || type === 'listen' || type === 'reverse' || type === 'scenario'){
@@ -241,7 +269,7 @@ function renderQuestion(type, card, cardIdx, cards){
 
   else if(type === 'build'){
     const words = buildWords(card);
-    let tiles = shuffled(words.map((w, i) => ({ w, i })));
+    let tiles = shuffled(words.map((w, i) => ({ w, i })).concat(decoyWords(card, words, cards)));
     if(tiles.every((t, i) => t.i === i)) tiles = tiles.slice(1).concat(tiles[0]);
     body = english + '<div class="build-answer" id="buildAnswer" aria-label="Your answer"></div>' +
       '<div class="build-tiles" id="buildTiles"></div>' +
@@ -253,6 +281,17 @@ function renderQuestion(type, card, cardIdx, cards){
   if(after) after();
 }
 
+// Difícil mixes in words from other phrases that don't belong.
+function decoyWords(card, words, pool){
+  const have = new Set(words.map(plainText)), out = [];
+  shuffled(pool.filter(c => c !== card && !c.es.includes(' / '))).forEach(c => {
+    c.es.replace(PUNCT, ' ').split(/\s+/).filter(Boolean).forEach(w => {
+      if(out.length < level().decoys && !have.has(plainText(w)) && plainText(w).length >= 2){ have.add(plainText(w)); out.push({ w, i: -1 }); }
+    });
+  });
+  return out;
+}
+
 function wireBuild(card, words, tiles){
   const placed = [];
   const answerEl = document.getElementById('buildAnswer'), tilesEl = document.getElementById('buildTiles');
@@ -261,7 +300,7 @@ function wireBuild(card, words, tiles){
     answerEl.innerHTML = placed.map((t, k) => '<button class="tile placed" data-k="' + k + '">' + esc(t.w) + '</button>').join('');
     tilesEl.innerHTML = tiles.map((t, k) => placed.includes(t) ? '<span class="tile ghost">' + esc(t.w) + '</span>'
       : '<button class="tile" data-k="' + k + '">' + esc(t.w) + '</button>').join('');
-    checkBtn.disabled = placed.length !== tiles.length || state.quizAnswered;
+    checkBtn.disabled = placed.length !== words.length || state.quizAnswered;
     if(state.quizAnswered) return;
     tilesEl.querySelectorAll('button.tile').forEach(b => { b.onclick = () => { placed.push(tiles[+b.dataset.k]); draw(); }; });
     answerEl.querySelectorAll('button.tile').forEach(b => { b.onclick = () => { placed.splice(+b.dataset.k, 1); draw(); }; });
@@ -295,7 +334,8 @@ function wireSpeaking(card){
     label.textContent = 'Listening…';
     rec.onresult = e => {
       const alts = Array.from(e.results[0] || []).map(a => a.transcript);
-      const results = alts.map(t => ({ t, r: checkAnswer(t, card) }));
+      // Speech recognition mishears a little, so speaking is never judged more strictly than Normal.
+      const results = alts.map(t => ({ t, r: checkAnswer(t, card, state.difficulty === 'easy' ? DIFFICULTY.easy : DIFFICULTY.normal) }));
       const hit = results.find(x => x.r.ok);
       attempts++;
       if(hit){ heard.textContent = 'I heard: “' + hit.t + '”'; finishQuestion('speak', card, true, []); return; }
@@ -360,7 +400,7 @@ function renderMatch(){
   const stage = document.getElementById('stage');
   const picked = [];
   shuffled(activeCards()).forEach(c => {
-    if(picked.length < 5 && !picked.some(p => p.es === c.es || meaningsOverlap(p.en, c.en))) picked.push(c);
+    if(picked.length < level().matchPairs && !picked.some(p => p.es === c.es || meaningsOverlap(p.en, c.en))) picked.push(c);
   });
   if(picked.length < 3){ stage.innerHTML = '<div class="done"><p>Not enough phrases here for a match game.</p></div>'; return; }
   const left = shuffled(picked), right = shuffled(picked);
@@ -416,6 +456,27 @@ function finishMatch(seconds, mistakes, tick){
     (record ? ' That’s your best time!' : ' Best: ' + best + 's.') + '</p>' +
     '<button class="ctrl-btn primary end-btn" id="matchAgainBtn">Play again</button></div>');
   document.getElementById('matchAgainBtn').onclick = () => render();
+}
+
+// Difficulty picker, shown in both Flashcards and Quiz.
+function renderDifficulty(){
+  const el = document.getElementById('difficulty');
+  const d = level();
+  el.innerHTML =
+    '<div class="difficulty" role="radiogroup" aria-label="Difficulty">' +
+      '<span class="difficulty-label">Nivel</span>' +
+      DIFFICULTY_IDS.map(id => '<button class="diff-btn' + (id === state.difficulty ? ' active' : '') + '" role="radio" aria-checked="' + (id === state.difficulty) +
+        '" data-diff="' + id + '">' + DIFFICULTY[id].label + '</button>').join('') +
+    '</div>' +
+    '<div class="difficulty-blurb">' + d.en + ': ' + d.blurb + '</div>';
+  el.querySelectorAll('.diff-btn').forEach(b => {
+    b.onclick = () => {
+      if(b.dataset.diff === state.difficulty) return;
+      state.difficulty = b.dataset.diff;
+      savePrefs();
+      startSession(state.practice);
+    };
+  });
 }
 
 // The quiz-type picker shown above the quiz.

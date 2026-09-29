@@ -542,6 +542,59 @@ const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++
   ok(['recognize', 'reverse', 'listen', 'type', 'gap', 'build', 'scenario'].every(k => typeStats.t.typesDone[k] || k === 'recognize'), 'types done are tracked');
   await qctx.close();
 
+  // 25. difficulty levels
+  const dctx = await newCtx(); const pd = await dctx.newPage();
+  pd.on('pageerror', e => { console.log('PAGEERROR-D', e.message); fails++; });
+  await pd.goto(URL);
+  ok(await pd.evaluate(() => state.difficulty) === 'normal' && (await pd.textContent('#difficulty')).includes('Normal'), 'difficulty defaults to Normal and is shown');
+  ok(await pd.isVisible('.face-front .card-sub'), 'Normal: pronunciation shown on the flashcard');
+  await pd.click('.diff-btn[data-diff="hard"]');
+  ok(!(await pd.$('.face-front .card-sub')) && (await pd.textContent('.face-back')).length > 0, 'Difícil: pronunciation hidden on the front (still on the back)');
+  ok(await pd.evaluate(() => JSON.parse(localStorage.getItem('prefs')).difficulty) === 'hard', 'difficulty is saved');
+  await pd.reload();
+  await pd.waitForSelector('#difficulty .diff-btn.active');
+  ok(await pd.evaluate(() => state.difficulty) === 'hard', 'difficulty survives a restart');
+
+  const dq = (diff, type, es) => pd.evaluate(([diff, type, es]) => {
+    state.difficulty = diff; state.deck = 'love'; state.levelByDeck.love = 0; state.quizType = type; state.mode = 'quiz'; state.practice = true;
+    resetDeckState(); const cards = activeCards(); state.order = [cards.findIndex(c => c.es === es), 1]; render();
+    return { opts: document.querySelectorAll('#optsWrap .opt-btn').length, tiles: document.querySelectorAll('#buildTiles .tile').length,
+             pron: !!document.querySelector('#stage .card-sub'), match: document.querySelectorAll('.match-tile.es').length };
+  }, [diff, type, es]);
+  const easyQ = await dq('easy', 'recognize', 'Te extraño'), normalQ = await dq('normal', 'recognize', 'Te extraño'), hardQ = await dq('hard', 'recognize', 'Te extraño');
+  ok(easyQ.opts === 3 && normalQ.opts === 4 && hardQ.opts === 5, 'choices: 3 / 4 / 5 by difficulty');
+  ok(easyQ.pron && normalQ.pron && !hardQ.pron, 'quiz pronunciation hidden only on Difícil');
+  const eb = await dq('easy', 'build', 'Me haces muy feliz'), hb = await dq('hard', 'build', 'Me haces muy feliz');
+  ok(eb.tiles === 4 && hb.tiles === 6, 'Difícil adds 2 decoy words to Build the phrase');
+  for (const w of ['Me', 'haces', 'muy', 'feliz']) await pd.click(`#buildTiles button.tile:text-is("${w}")`);
+  ok(!(await pd.$eval('#checkBtn', b => b.disabled)), 'build with decoys: can check once the real words are placed');
+  await pd.click('#checkBtn');
+  ok(await pd.$eval('#buildAnswer', el => el.classList.contains('correct')), 'build with decoys: correct order still counts');
+  const em = await dq('easy', 'match', 'Te extraño'), hm = await dq('hard', 'match', 'Te extraño');
+  ok(em.match === 4 && hm.match === 6, 'match pairs: 4 on Fácil, 6 on Difícil');
+
+  const typing = await pd.evaluate(() => {
+    const card = { es: 'Pienso en ti todo el día' };
+    return { easy2: checkAnswer('pienso en ti todo el dai', card, DIFFICULTY.easy).ok, normal2: checkAnswer('piensp en ti todo el dia', card, DIFFICULTY.normal).ok && !checkAnswer('piensa en ti todo el dai', card, DIFFICULTY.normal).ok,
+             hardAccent: checkAnswer('pienso en ti todo el dia', card, DIFFICULTY.hard), hardRight: checkAnswer('Pienso en ti todo el día', card, DIFFICULTY.hard).ok,
+             hardPunct: checkAnswer('¿pienso en ti todo el día?', card, DIFFICULTY.hard).ok, normalAccent: checkAnswer('pienso en ti todo el dia', card, DIFFICULTY.normal).ok };
+  });
+  ok(typing.easy2 && typing.normal2 && typing.normalAccent, 'Fácil/Normal forgive typos and missing accents');
+  ok(!typing.hardAccent.ok && typing.hardAccent.note.includes('accents count') && typing.hardRight && typing.hardPunct, 'Difícil: accents must be right (punctuation still ignored)');
+
+  const tiersD = await pd.evaluate(() => {
+    state.quizType = 'mixed'; state.speakInMix = false;
+    const pool = levelCards('love', 0), card = pool.find(c => c.es === 'Me haces muy feliz');
+    const kinds = (diff, box) => { state.difficulty = diff; state.progress[card._id] = { box, due: 0 }; const s = new Set(); for (let i = 0; i < 200; i++) s.add(pickQuizType(card, pool)); return [...s].sort().join(); };
+    return { hard0: kinds('hard', 0), easy4: kinds('easy', 4), hard4: kinds('hard', 4) };
+  });
+  ok(tiersD.hard0 === 'recognize,reverse', 'Difícil: new cards can already be asked English → Spanish');
+  ok(!tiersD.easy4.includes('type') && tiersD.hard4 === 'build,scenario,type', 'Fácil never forces typing; Difícil strong cards are typed/built/used: ' + tiersD.easy4 + ' | ' + tiersD.hard4);
+  ok(await pd.evaluate(() => { const r = []; ['easy', 'normal', 'hard'].forEach(d => { state.difficulty = d; r.push(level().speechRate); }); return r[0] < r[1] && r[1] < r[2]; }), 'audio: slower on Fácil, natural on Difícil');
+  const hardCount = await pd.evaluate(() => { state.difficulty = 'hard'; const before = state.stats.hardCorrect; recordAnswer('love/Te extraño', true, 'recognize'); return state.stats.hardCorrect - before; });
+  ok(hardCount === 1, 'right answers on Difícil count toward "Modo difícil"');
+  await dctx.close();
+
   await browser.close();
   console.log(fails ? fails + ' FAILED' : 'ALL PASSED');
   process.exitCode = fails ? 1 : 0;

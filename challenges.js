@@ -24,7 +24,7 @@ const Challenges = (function () {
   function blankStats() {
     return { days: {}, streak: 0, bestStreak: 0, lastDay: null, bestRun: 0,
              listenedTotal: 0, dailyDoneDays: 0, early: false, late: false, earned: {},
-             typedTotal: 0, spokenTotal: 0, matchGames: 0, bestMatch: 0, typesDone: {} };
+             typedTotal: 0, spokenTotal: 0, matchGames: 0, bestMatch: 0, typesDone: {}, hardCorrect: 0 };
   }
 
   // ---- daily challenges ----
@@ -98,6 +98,7 @@ const Challenges = (function () {
     { id: 'daily10', icon: 'diamond', es: 'Diez días de retos', en: 'Ten days of challenges \u2014 finish all 3 on 10 days', progress: c => [c.stats.dailyDoneDays, 10] },
     { id: 'type50', icon: 'leaf', es: 'De memoria', en: 'By heart \u2014 type 50 phrases correctly', progress: c => [c.stats.typedTotal, 50] },
     { id: 'speak10', icon: 'flower', es: '\u00a1Qué bien hablas!', en: 'You speak so well \u2014 say 10 phrases correctly out loud', progress: c => [c.stats.spokenTotal, 10] },
+    { id: 'hard50', icon: 'chili', es: 'Modo difícil', en: 'Hard mode \u2014 get 50 answers right on Difícil', progress: c => [c.stats.hardCorrect, 50] },
     { id: 'match10', icon: 'spiral', es: 'Memoria de elefante', en: 'A memory like an elephant \u2014 finish 10 match games', progress: c => [c.stats.matchGames, 10] },
     { id: 'alltypes', icon: 'sun', es: 'De todo un poco', en: 'A bit of everything \u2014 get every quiz question type right at least once', progress: c => [Object.keys(c.stats.typesDone).length, QUIZ_KINDS.length] },
   ];
@@ -138,6 +139,7 @@ const Challenges = (function () {
       if (ev.qtype === 'type') stats.typedTotal++;
       if (ev.qtype === 'speak') stats.spokenTotal++;
     }
+    if (ev.correct && ev.difficulty === 'hard') stats.hardCorrect++;
     if (ev.mode === 'quiz') {
       d.run = ev.correct ? d.run + 1 : 0;
       d.bestRun = Math.max(d.bestRun, d.run);
@@ -202,7 +204,7 @@ const Challenges = (function () {
   function clean(raw) {
     const s = blankStats();
     if (!raw || typeof raw !== 'object') return s;
-    ['streak', 'bestStreak', 'bestRun', 'listenedTotal', 'dailyDoneDays', 'typedTotal', 'spokenTotal', 'matchGames', 'bestMatch']
+    ['streak', 'bestStreak', 'bestRun', 'listenedTotal', 'dailyDoneDays', 'typedTotal', 'spokenTotal', 'matchGames', 'bestMatch', 'hardCorrect']
       .forEach(k => { s[k] = Math.floor(nonNeg(raw[k])); });
     if (raw.typesDone && typeof raw.typesDone === 'object') QUIZ_KINDS.forEach(t => { if (raw.typesDone[t] === true) s.typesDone[t] = true; });
     s.early = raw.early === true;
@@ -232,7 +234,7 @@ const Challenges = (function () {
   // counts and the running streak stay as they are on this device.
   function merge(local, incoming) {
     const m = clean(local), inc = clean(incoming);
-    ['bestStreak', 'bestRun', 'listenedTotal', 'dailyDoneDays', 'typedTotal', 'spokenTotal', 'matchGames'].forEach(k => { m[k] = Math.max(m[k], inc[k]); });
+    ['bestStreak', 'bestRun', 'listenedTotal', 'dailyDoneDays', 'typedTotal', 'spokenTotal', 'matchGames', 'hardCorrect'].forEach(k => { m[k] = Math.max(m[k], inc[k]); });
     if (inc.bestMatch) m.bestMatch = m.bestMatch ? Math.min(m.bestMatch, inc.bestMatch) : inc.bestMatch;
     Object.keys(inc.typesDone).forEach(t => { m.typesDone[t] = true; });
     m.early = m.early || inc.early;

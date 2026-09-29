@@ -14,6 +14,7 @@ const freshState = () => ({
   unlocked: {},      // deckKey -> unlock progress, see unlockProgress(). Persisted; never goes down.
   mode: 'flash',
   quizType: 'mixed', // one of QUIZ_TYPE_IDS (quiz.js); saved per profile
+  difficulty: 'normal', // one of DIFFICULTY_IDS (quiz.js); saved per profile
   speakInMix: false, // include "say it out loud" questions in Mixed
   q: null,           // {key, type}: the current quiz question's type, fixed while it's on screen
   practice: false,   // true = the session includes cards that aren't due yet
@@ -109,6 +110,7 @@ async function loadProgress(){
   try{
     const prefs = JSON.parse((await Storage.get('prefs')) || 'null');
     if(prefs && QUIZ_TYPE_IDS.includes(prefs.quizType)) state.quizType = prefs.quizType;
+    if(prefs && DIFFICULTY_IDS.includes(prefs.difficulty)) state.difficulty = prefs.difficulty;
     if(prefs) state.speakInMix = prefs.speakInMix === true;
   }catch(e){}
   try{
@@ -121,7 +123,7 @@ async function loadProgress(){
 }
 async function saveProgress(){ try{ await Storage.set('progress', JSON.stringify(state.progress)); }catch(e){} }
 async function saveCorrectTotal(){ try{ await Storage.set('streak', String(state.correctTotal)); }catch(e){} }
-async function savePrefs(){ try{ await Storage.set('prefs', JSON.stringify({ quizType: state.quizType, speakInMix: state.speakInMix })); }catch(e){} }
+async function savePrefs(){ try{ await Storage.set('prefs', JSON.stringify({ quizType: state.quizType, speakInMix: state.speakInMix, difficulty: state.difficulty })); }catch(e){} }
 async function saveUnlocked(){ try{ await Storage.set('unlocked', JSON.stringify(state.unlocked)); }catch(e){} }
 async function saveStats(){ try{ await Storage.set('challenges', JSON.stringify(state.stats)); }catch(e){} }
 
@@ -146,7 +148,7 @@ function speak(text){
   u.lang = 'es-MX';
   const mx = voices.find(v => v.lang === 'es-MX' || v.lang === 'es_MX') || voices.find(v => v.lang && v.lang.startsWith('es'));
   if(mx) u.voice = mx;
-  u.rate = 0.92;
+  u.rate = level().speechRate; // slower on Fácil, natural speed on Difícil
   window.speechSynthesis.cancel();
   window.speechSynthesis.speak(u);
 }
@@ -232,7 +234,7 @@ function recordAnswer(id, correct, qtype){
 
   // challenges: every answer counts toward the day streak and today's challenges
   const now = Date.now();
-  Challenges.recordAnswer(state.stats, { deck: state.deck, correct, mode: state.mode, qtype, now });
+  Challenges.recordAnswer(state.stats, { deck: state.deck, correct, mode: state.mode, qtype, difficulty: state.difficulty, now });
   if(!early && !state.practice && !activeCards().some(c => SRS.isDue(cardRecord(c._id), now))){
     Challenges.recordCleared(state.stats, now);
   }
@@ -562,7 +564,7 @@ function renderFlash(){
         '<button class="sound-btn" id="soundBtn" title="Hear it" aria-label="Hear it">' + SPEAKER_SVG + '</button>' +
         iconSvg(card.icon) +
         '<div class="card-word">' + esc(card.es) + '</div>' +
-        '<div class="card-sub" style="opacity:0.75;font-style:italic;">' + esc(card.pron) + '</div>' +
+        (level().showPron ? '<div class="card-sub" style="opacity:0.75;font-style:italic;">' + esc(card.pron) + '</div>' : '') +
         '<div class="card-hint">tap to reveal</div>' +
       '</div>' +
       '<div class="face face-back">' +
@@ -721,6 +723,7 @@ function render(){
   renderDecks();
   renderLevelChips();
   renderModes();
+  renderDifficulty();
   renderQuizOptions();
   renderBanner();
   renderStats();
