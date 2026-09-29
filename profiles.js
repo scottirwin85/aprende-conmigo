@@ -225,6 +225,7 @@ const Profiles = (function () {
       '<div class="profile-menu" id="profileMenu" hidden>' +
         '<button id="menuSwitch">Switch profile</button>' +
         '<button id="menuEdit">Edit name or PIN</button>' +
+        '<button id="menuLogout" class="menu-logout">Log out</button>' +
       '</div>';
     const menu = $('profileMenu'), btn = $('chipBtn');
     const close = () => { menu.hidden = true; btn.setAttribute('aria-expanded', 'false'); };
@@ -242,6 +243,15 @@ const Profiles = (function () {
     }
     $('menuSwitch').onclick = () => { close(); showPicker(); };
     $('menuEdit').onclick = () => { close(); showForm(entered); };
+    $('menuLogout').onclick = () => { close(); logout(); };
+  }
+
+  // Unlike "Switch profile", nobody is remembered: the next launch asks who's practising.
+  function logout() {
+    if (window.speechSynthesis) try { window.speechSynthesis.cancel(); } catch (e) {}
+    data.active = null;
+    save();
+    showPicker();
   }
 
   async function start(callback) {
@@ -254,5 +264,5 @@ const Profiles = (function () {
     else showPicker();
   }
 
-  return { start, current: () => entered };
+  return { start, logout, current: () => entered };
 })();

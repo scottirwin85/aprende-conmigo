@@ -22,6 +22,11 @@ const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++
     });
     return c;
   };
+  // After a load or reload, wait until the app has finished starting: either a
+  // profile is signed in and drawn, or a sign-in screen is showing.
+  const appReady = pg => pg.waitForFunction(() =>
+    typeof Profiles !== 'undefined' && document.getElementById('login') &&
+    ((Profiles.current() && document.querySelector('#stage').children.length) || !document.getElementById('login').hidden));
   const ctx = await newCtx();
   const page = await ctx.newPage();
   page.on('pageerror', e => { console.log('PAGEERROR', e.message); fails++; });
@@ -124,7 +129,7 @@ const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++
   p2.on('pageerror', e => { console.log('PAGEERROR2', e.message); fails++; });
   await p2.goto(URL);
   await p2.evaluate(() => { localStorage.setItem('progress', JSON.stringify({'everyday:0:0': {box: 3, due: 1e15}, 'love:2:9': {box:1, due: 5}})); localStorage.setItem('streak','7'); });
-  await p2.reload();
+  await p2.reload(); await appReady(p2);
   const mig = await p2.evaluate(() => JSON.parse(localStorage.getItem('progress')));
   ok(mig['everyday/¿Qué onda?'] && mig['everyday/¿Qué onda?'].box === 3 && mig['love/Para siempre y un día más'], 'legacy positional ids migrated');
   await p2.click('#importBtn'); await p2.fill('#importBox', code); await p2.click('#applyImportBtn');
@@ -351,7 +356,7 @@ const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++
   await pp.clock.install({ time: new Date('2026-09-29T08:30:00') });
   await pp.goto(URL);
   await pp.evaluate(() => localStorage.setItem('progress', JSON.stringify({ 'food/Repetir': { box: 2, due: 9e12 } })));
-  await pp.reload();
+  await pp.reload(); await appReady(pp);
   ok(await pp.isVisible('#login') && !(await pp.isVisible('#main')), 'first launch shows the welcome screen, app hidden');
   ok((await pp.textContent('#login')).includes('progress already on this device will be kept'), 'welcome mentions keeping existing progress');
   await pp.click('#saveProfileBtn');
@@ -363,7 +368,7 @@ const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++
   ok(await pp.isVisible('#main') && (await pp.textContent('#greeting')).includes('¡Buenos días, Sam!'), 'greeting uses the name');
   ok(await pp.evaluate(() => state.progress['food/Repetir'].box) === 2, 'first profile keeps the existing progress');
   ok((await pp.textContent('#profileChip')).includes('Sam'), 'profile button shows the name');
-  await pp.reload();
+  await pp.reload(); await appReady(pp);
   ok(await pp.isVisible('#main'), 'no PIN: straight back in on the next launch');
 
   // add a second profile with a PIN
@@ -380,7 +385,7 @@ const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++
   ok(await pp.evaluate(() => Object.keys(localStorage).some(k => /^p:[a-z0-9]+:progress$/.test(k))), "Alex's progress is stored under their own keys");
 
   // PIN on the next launch
-  await pp.reload();
+  await pp.reload(); await appReady(pp);
   ok(await pp.isVisible('#pinInput') && !(await pp.isVisible('#main')), 'profile with a PIN asks for it on launch');
   await pp.fill('#pinInput', '1111');
   ok((await pp.textContent('#pinError')).includes('isn’t right') && !(await pp.isVisible('#main')), 'wrong PIN is refused');
@@ -551,7 +556,7 @@ const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++
   await pd.click('.diff-btn[data-diff="hard"]');
   ok(!(await pd.$('.face-front .card-sub')) && (await pd.textContent('.face-back')).length > 0, 'Difícil: pronunciation hidden on the front (still on the back)');
   ok(await pd.evaluate(() => JSON.parse(localStorage.getItem('prefs')).difficulty) === 'hard', 'difficulty is saved');
-  await pd.reload();
+  await pd.reload(); await appReady(pd);
   await pd.waitForSelector('#difficulty .diff-btn.active');
   ok(await pd.evaluate(() => state.difficulty) === 'hard', 'difficulty survives a restart');
 
@@ -594,6 +599,23 @@ const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++
   const hardCount = await pd.evaluate(() => { state.difficulty = 'hard'; const before = state.stats.hardCorrect; recordAnswer('love/Te extraño', true, 'recognize'); return state.stats.hardCorrect - before; });
   ok(hardCount === 1, 'right answers on Difícil count toward "Modo difícil"');
   await dctx.close();
+
+  // 26. log out
+  const lctx = await newCtx(); const pl = await lctx.newPage();
+  pl.on('pageerror', e => { console.log('PAGEERROR-L', e.message); fails++; });
+  await pl.goto(URL);
+  await pl.click('#knowBtn');
+  await pl.click('#chipBtn');
+  ok(await pl.isVisible('#menuLogout'), 'profile menu has Log out');
+  await pl.click('#menuLogout');
+  ok(await pl.isVisible('#login') && !(await pl.isVisible('#main')) && (await pl.textContent('#login')).includes('¿Quién va a practicar?'), 'log out shows who-is-practising screen');
+  ok(await pl.evaluate(() => JSON.parse(localStorage.getItem('profiles')).active) === null, 'log out forgets the signed-in profile');
+  await pl.reload(); await appReady(pl);
+  await pl.waitForSelector('.profile-pick');
+  ok(!(await pl.isVisible('#main')), 'after logging out, the next launch does not sign straight in');
+  await pl.click('.profile-pick:has-text("Sam")');
+  ok(await pl.isVisible('#main') && await pl.evaluate(() => Object.keys(state.progress).length) === 1, 'signing back in keeps the progress');
+  await lctx.close();
 
   await browser.close();
   console.log(fails ? fails + ' FAILED' : 'ALL PASSED');
