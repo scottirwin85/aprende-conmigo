@@ -715,6 +715,56 @@ const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++
   await vctx.close();
   }
 
+  { // 30. My phrases
+    const mctx = await newCtx(); const pm = await mctx.newPage();
+    pm.on('pageerror', e => { console.log('PAGEERROR-M', e.message); fails++; });
+    await pm.goto(URL); await appReady(pm);
+    ok(!(await pm.evaluate(() => 'mine' in DECKS)), 'no My phrases deck until you add one');
+    await pm.click('#chipBtn'); await pm.click('#menuMine');
+    await pm.click('#mineSave');
+    ok((await pm.textContent('#mineError')).includes('fill in'), 'Spanish and meaning are required');
+    const add = async (es, en, pron, ctx) => { await pm.fill('#mineEs', es); await pm.fill('#mineEn', en); await pm.fill('#minePron', pron || ''); await pm.fill('#mineCtx', ctx || ''); await pm.click('#mineSave'); };
+    await add('¿Me pasas el control?', 'Can you pass me the remote?', 'meh PAH-sahs el kohn-TROHL', 'You’re on the sofa and the remote is out of reach.');
+    await add('Ya me voy a dormir', 'I’m off to bed');
+    await add('ya me voy a dormir', 'dupe');
+    ok((await pm.textContent('#mineError')).includes('already'), 'duplicates are rejected');
+    ok((await pm.$$('.voice-list .voice-row')).length === 2, 'phrases are listed');
+    await pm.click('#panelBack');
+    ok((await pm.textContent('#decks')).includes('My phrases'), 'My phrases deck appears');
+    await pm.click('.deck-btn:has-text("My phrases")');
+    ok(await pm.evaluate(() => activeCards().length) === 2 && await pm.isVisible('#knowBtn'), 'its cards are studied like any other');
+    const noPron = await pm.evaluate(() => { const i = activeCards().findIndex(c => c.es === 'Ya me voy a dormir'); state.order = [i]; state.idx = 0; render(); return document.querySelectorAll('.face-front .card-sub').length; });
+    ok(noPron === 0, 'no empty pronunciation line when none was given');
+    await pm.click('#knowBtn');
+    const id = 'mine/Ya me voy a dormir';
+    ok(await pm.evaluate(id => state.progress[id] && state.progress[id].box === 1, id), 'answers are recorded for My phrases');
+    // quiz: only 2 phrases, so wrong options are borrowed from other decks
+    const opts = await pm.evaluate(() => { state.mode = 'quiz'; state.quizType = 'recognize'; state.practice = true; resetDeckState(); render(); return document.querySelectorAll('#optsWrap .opt-btn').length; });
+    ok(opts === 4, 'small deck still gets 4 choices (borrowed from other decks)');
+    const scen = await pm.evaluate(() => { state.quizType = 'scenario'; const cards = activeCards(); state.order = [cards.findIndex(c => c.ctx)]; state.idx = 0; state.q = null; render(); return document.querySelector('.quiz-scenario') && document.querySelector('.quiz-scenario').textContent; });
+    ok(scen && scen.includes('remote'), 'your situation is used in "What would you say?"');
+    // edit keeps progress; delete removes it
+    await pm.evaluate(() => { state.mode = 'flash'; });
+    await pm.click('#chipBtn'); await pm.click('#menuMine');
+    await pm.click('.voice-row:has-text("Ya me voy a dormir") [data-act="edit"]');
+    await pm.fill('#mineEs', 'Ya me voy a dormir, mi amor'); await pm.click('#mineSave');
+    ok(await pm.evaluate(() => !!state.progress['mine/Ya me voy a dormir, mi amor'] && !state.progress['mine/Ya me voy a dormir']), 'editing the Spanish keeps its progress');
+    const exported = await pm.evaluate(() => { state.syncPanel = 'export'; renderSync(); return decodeProgressBlob(document.getElementById('exportBox').value).custom.length; });
+    ok(exported === 2, 'export includes My phrases');
+    await pm.click('.voice-row:has-text("dormir") [data-act="del"]'); await pm.click('.voice-row:has-text("dormir") [data-act="del"]');
+    ok(await pm.evaluate(() => myPhrases.length === 1 && !state.progress['mine/Ya me voy a dormir, mi amor']), 'deleting removes the phrase and its progress');
+    await pm.reload(); await appReady(pm);
+    ok(await pm.evaluate(() => myPhrases.length === 1 && 'mine' in DECKS), 'My phrases are saved');
+    // another profile has its own list; import brings phrases across
+    const code = await pm.evaluate(() => encodeProgressBlob({ progress: { 'mine/¿Me pasas el control?': { box: 2, due: 9e12, seen: 5 } }, custom: myPhrases }));
+    await pm.evaluate(() => Profiles.logout());
+    await pm.click('#addProfileBtn'); await pm.fill('#nameInput', 'Alex'); await pm.click('#saveProfileBtn');
+    ok(await pm.evaluate(() => myPhrases.length === 0 && !('mine' in DECKS)), "another profile doesn't see Sam's phrases");
+    await pm.evaluate(code => applyImport(code), code);
+    ok(await pm.evaluate(() => myPhrases.length === 1 && state.progress['mine/¿Me pasas el control?'].box === 2), 'import brings My phrases and their progress');
+    await mctx.close();
+  }
+
   await browser.close();
   console.log(fails ? fails + ' FAILED' : 'ALL PASSED');
   process.exitCode = fails ? 1 : 0;

@@ -158,6 +158,12 @@ function pickQuizType(card, pool){
   return usable.length ? shuffled(usable)[0] : 'recognize';
 }
 
+// Small decks (e.g. My phrases) borrow wrong options from the other decks.
+function choicePool(cards){
+  if(cards.length >= level().choices + 2) return cards;
+  return cards.concat(BUILT_IN_DECKS.reduce((all, k) => all.concat(deckCards(k)), []).filter(c => !cards.some(x => x.es === c.es)));
+}
+
 // Wrong options (2-4, by difficulty) whose meaning doesn't overlap the right one.
 function distractorCards(card, pool){
   const out = [], want = level().choices - 1;
@@ -190,13 +196,13 @@ function renderQuestion(type, card, cardIdx, cards){
   const head = '<div class="quiz-prompt">' + PROMPTS[type] + ' <span style="opacity:0.6;">(' + dueLabel(card._id) + ')</span></div>';
   const english = '<div class="quiz-en">' + esc(stripNote(card.en)) + '</div>';
   const spanishWord = '<div class="quiz-word">' + esc(card.es) + ' ' + quizSoundButton('quizSoundBtn') + '</div>' +
-    (level().showPron ? '<div class="card-sub" style="opacity:0.55;font-style:italic;margin-top:2px;">' + esc(card.pron) + '</div>' : '');
+    (level().showPron && card.pron ? '<div class="card-sub" style="opacity:0.55;font-style:italic;margin-top:2px;">' + esc(card.pron) + '</div>' : '');
   let body = '', after = null;
 
   if(type === 'recognize' || type === 'listen' || type === 'reverse' || type === 'scenario'){
     const toSpanish = type === 'reverse' || type === 'scenario';
     const optText = c => toSpanish ? c.es : stripNote(c.en);
-    const options = shuffled([card].concat(distractorCards(card, cards)));
+    const options = shuffled([card].concat(distractorCards(card, choicePool(cards))));
     if(type === 'recognize') body = iconSvg(card.icon, 'quiz-icon-svg') + spanishWord;
     else if(type === 'listen') body = '<button class="listen-big" id="listenBtn">' + SPEAKER_SVG + '<span>Tap to hear it</span></button>';
     else if(type === 'reverse') body = iconSvg(card.icon, 'quiz-icon-svg') + english;
@@ -376,7 +382,7 @@ function finishQuestion(type, card, isCorrect, notes){
     reveal.className = 'quiz-reveal ' + (isCorrect ? 'good' : 'bad');
     reveal.innerHTML = '<div class="reveal-head">' + (isCorrect ? '✓ Correct' : 'The answer:') + '</div>' +
       '<div class="reveal-es">' + esc(card.es) + ' ' + quizSoundButton('revealSoundBtn') + '</div>' +
-      '<div class="reveal-sub">' + esc(card.pron) + ' · ' + esc(card.en) + '</div>';
+      '<div class="reveal-sub">' + (card.pron ? esc(card.pron) + ' · ' : '') + esc(card.en) + '</div>';
     stage.appendChild(reveal);
     document.getElementById('revealSoundBtn').onclick = () => hearCard(card.es);
   }

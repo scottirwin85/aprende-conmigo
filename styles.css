@@ -284,3 +284,10 @@ button:focus-visible, .card:focus-visible{ outline:3px solid var(--marigold); ou
 
 /* share */
 .share-btn{ margin-top:14px; padding:6px 14px; border-radius:16px; border:1px solid rgba(255,255,255,0.45); background:rgba(255,255,255,0.12); color:#fff; font-family:var(--font-body); font-size:12.5px; font-weight:600; cursor:pointer; }
+
+/* My phrases */
+.mine-form{ border:1px solid var(--line); border-radius:14px; background:var(--surface); padding:14px 14px 4px; margin-bottom:16px; }
+.mine-form-title{ font-family:var(--font-display); font-weight:600; font-size:17px; margin-bottom:10px; }
+.field em{ font-style:normal; font-weight:400; color:rgba(var(--ink-rgb),0.55); }
+.field textarea{ width:100%; padding:12px 14px; border:1px solid var(--line); border-radius:12px; background:var(--surface); font-size:16px; font-family:var(--font-body); color:var(--ink); resize:vertical; }
+.mine-form .quiz-row{ margin:4px 0 12px; }

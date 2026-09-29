@@ -45,6 +45,13 @@ It changes how questions are asked, never how often cards come back.
 | Mixed mode | harder types come later | as above | harder types come sooner |
 | Match the pairs | 4 pairs | 5 pairs | 6 pairs |
 
+## My phrases
+
+**My phrases** (in the menu under your name) is for the things you really say
+at home: Spanish, English, and optionally how to say it and when you'd say it.
+They become a "My phrases" deck for that profile, with the same reviews and
+quizzes as everything else, and travel with Export/Import.
+
 ## Your voice, and sharing phrases
 
 - **Record phrases in your voice** (in the menu under your name): record a

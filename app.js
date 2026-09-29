@@ -7,6 +7,8 @@
 const LEVEL_UNLOCK_BOX = 2; // a level "unlocks the next one" once every card has been gotten right twice, on schedule
 const MASTER_BOX = 4; // a deck is "mastered" once every card is on a week-long (or longer) gap
 const ALL = 'all'; // levelByDeck value meaning "review the whole deck"
+const MINE = 'mine'; // the deck of your own phrases (added per profile, see "My phrases")
+const BUILT_IN_DECKS = Object.keys(DECKS); // captured before "My phrases" is added
 
 const freshState = () => ({
   deck: 'everyday',
@@ -59,7 +61,7 @@ function cardId(deckKey, card){ return deckKey + '/' + card.es; }
 
 const CARD_IDS = new Set();
 const LEGACY_IDS = {}; // old positional "deck:level:index" ids, and ids from a card's `was` text -> current id
-Object.keys(DECKS).forEach(key => {
+function registerDeck(key){
   DECKS[key].levels.forEach((lvl, li) => lvl.cards.forEach((c, ci) => {
     const id = cardId(key, c);
     if(CARD_IDS.has(id)) console.warn('Duplicate card in deck "' + key + '": ' + c.es + ' — both copies share progress.');
@@ -67,7 +69,8 @@ Object.keys(DECKS).forEach(key => {
     LEGACY_IDS[key + ':' + li + ':' + ci] = id;
     if(c.was) LEGACY_IDS[cardId(key, {es: c.was})] = id;
   }));
-});
+}
+Object.keys(DECKS).forEach(registerDeck);
 
 // Returns a clean progress object: legacy ids converted, unknown ids and
 // malformed records dropped. Used for both stored and imported progress.
@@ -258,11 +261,11 @@ function recordAnswer(id, correct, qtype){
 // ---- challenges, greeting and toasts ----
 function deckNames(){
   const out = {};
-  Object.keys(DECKS).forEach(key => { out[key] = DECKS[key].name; });
+  BUILT_IN_DECKS.forEach(key => { out[key] = DECKS[key].name; }); // not "My phrases": it may be too small for deck challenges
   return out;
 }
 function achievementContext(){
-  const keys = Object.keys(DECKS);
+  const keys = BUILT_IN_DECKS;
   return {
     known: keys.reduce((n, key) => n + deckTotals(key).known, 0),
     totalCards: CARD_IDS.size,
@@ -402,6 +405,7 @@ function renderDecks(){
     const lvl = key === state.deck ? currentLevel(key) : defaultLevel(key);
     const label = mastered ? 'Mastered' + (lvl === ALL ? ' · reviewing' : '')
       : lvl === ALL ? 'All levels · reviewing'
+      : key === MINE ? 'Your own phrases'
       : 'Level ' + (lvl+1) + ' of ' + d.levels.length;
     const btn = document.createElement('button');
     btn.className = 'deck-btn' + (state.deck === key ? ' active' : '');
@@ -573,14 +577,14 @@ function renderFlash(){
         '<button class="sound-btn" id="soundBtn" title="Hear it" aria-label="Hear it">' + SPEAKER_SVG + '</button>' +
         iconSvg(card.icon) +
         '<div class="card-word">' + esc(card.es) + '</div>' +
-        (level().showPron ? '<div class="card-sub" style="opacity:0.75;font-style:italic;">' + esc(card.pron) + '</div>' : '') +
+        (level().showPron && card.pron ? '<div class="card-sub" style="opacity:0.75;font-style:italic;">' + esc(card.pron) + '</div>' : '') +
         '<div class="card-hint">tap to reveal</div>' +
       '</div>' +
       '<div class="face face-back">' +
         '<button class="sound-btn" id="soundBtnBack" title="Hear it" aria-label="Hear it">' + SPEAKER_SVG + '</button>' +
         iconSvg(card.icon) +
         '<div class="card-word" style="font-size:20px;">' + esc(card.en) + '</div>' +
-        '<div class="card-sub">' + esc(card.es) + ' · ' + esc(card.pron) + '</div>' +
+        '<div class="card-sub">' + esc(card.es) + (card.pron ? ' · ' + esc(card.pron) : '') + '</div>' +
         '<button class="share-btn" id="shareBtn">Share this phrase</button>' +
       '</div>' +
     '</div></div>' +
@@ -661,8 +665,9 @@ function copyText(ta, onDone){
 function applyImport(text){
   const payload = decodeProgressBlob(text);
   if(!payload || typeof payload !== 'object') throw new Error('not an object');
+  const addedPhrases = mergeCustom(payload.custom);
   const incoming = cleanProgress(payload.progress);
-  if(!Object.keys(incoming).length) throw new Error('no usable progress');
+  if(!Object.keys(incoming).length && !addedPhrases) throw new Error('no usable progress');
 
   // Build everything first, then commit, so a bad code changes nothing.
   const merged = Object.assign({}, state.progress);
@@ -688,7 +693,7 @@ function applyImport(text){
 function renderSync(){
   const panelEl = document.getElementById('syncPanel');
   if(state.syncPanel === 'export'){
-    const blob = encodeProgressBlob({ version: 2, progress: state.progress, unlocked: state.unlocked, streak: state.correctTotal, challenges: state.stats, exportedAt: Date.now() });
+    const blob = encodeProgressBlob({ version: 2, progress: state.progress, unlocked: state.unlocked, streak: state.correctTotal, challenges: state.stats, custom: myPhrases, exportedAt: Date.now() });
     panelEl.innerHTML =
       '<div class="sync-panel">' +
         '<textarea id="exportBox" readonly aria-label="Progress code"></textarea>' +
@@ -746,6 +751,94 @@ document.getElementById('modeFlash').onclick = () => { state.mode='flash'; start
 document.getElementById('modeQuiz').onclick = () => { state.mode='quiz'; startSession(false); };
 document.getElementById('exportBtn').onclick = () => { state.syncPanel = state.syncPanel === 'export' ? null : 'export'; renderSync(); };
 document.getElementById('importBtn').onclick = () => { state.syncPanel = state.syncPanel === 'import' ? null : 'import'; renderSync(); };
+
+// ---- My phrases: your own cards, saved per profile as a small deck ----
+let myPhrases = []; // [{es, en, pron, ctx}]
+function cleanPhrase(p){
+  if(!p || typeof p !== 'object') return null;
+  const t = (v, n) => String(v == null ? '' : v).replace(/\s+/g, ' ').trim().slice(0, n);
+  const es = t(p.es, 120), en = t(p.en, 160);
+  return es && en ? { es, en, pron: t(p.pron, 120), ctx: t(p.ctx, 240) } : null;
+}
+// Puts "My phrases" into DECKS (or takes it out when empty) and registers its card ids.
+function syncMineDeck(){
+  CARD_IDS.forEach(id => { if(id.startsWith(MINE + '/')) CARD_IDS.delete(id); });
+  if(!myPhrases.length){
+    delete DECKS[MINE];
+    if(state.deck === MINE) state.deck = 'everyday';
+    return;
+  }
+  DECKS[MINE] = { name: 'My phrases', icon: 'mine', color: '#9A5B3F',
+    levels: [{ label: 'My phrases', cards: myPhrases.map(p => ({ es: p.es, en: p.en, pron: p.pron, ctx: p.ctx || undefined, icon: 'star' })) }] };
+  registerDeck(MINE);
+}
+async function loadCustom(){
+  myPhrases = [];
+  try{
+    const raw = JSON.parse((await Storage.get('custom')) || '[]');
+    if(Array.isArray(raw)) raw.map(cleanPhrase).filter(Boolean).forEach(p => { if(!myPhrases.some(q => q.es === p.es)) myPhrases.push(p); });
+  }catch(e){}
+  syncMineDeck();
+}
+async function saveCustom(){ try{ await Storage.set('custom', JSON.stringify(myPhrases)); }catch(e){} }
+// Adds imported phrases that aren't here yet; returns how many were added.
+function mergeCustom(list){
+  if(!Array.isArray(list)) return 0;
+  let added = 0;
+  list.map(cleanPhrase).filter(Boolean).forEach(p => { if(!myPhrases.some(q => q.es === p.es)){ myPhrases.push(p); added++; } });
+  if(added){ syncMineDeck(); saveCustom(); }
+  return added;
+}
+
+function renderMinePanel(editIndex){
+  const editing = editIndex != null ? myPhrases[editIndex] : null;
+  const field = (id, label, value, hint, big) => '<label class="field"><span>' + label + (hint ? ' <em>' + hint + '</em>' : '') + '</span>' +
+    (big ? '<textarea id="' + id + '" rows="2">' + esc(value || '') + '</textarea>' : '<input id="' + id + '" type="text" value="' + esc(value || '') + '"' + (id === 'mineEs' ? ' lang="es" autocapitalize="sentences"' : '') + '>') + '</label>';
+  showPanel('My phrases',
+    '<p class="panel-sub">Add the things you really say at home. They get their own deck and come back for review and quizzes like every other phrase. Saved in this profile.</p>' +
+    '<div class="mine-form">' +
+      '<div class="mine-form-title">' + (editing ? 'Edit phrase' : 'Add a phrase') + '</div>' +
+      field('mineEs', 'Spanish', editing && editing.es) +
+      field('mineEn', 'English meaning', editing && editing.en) +
+      field('minePron', 'How to say it', editing && editing.pron, '(optional, e.g. meh YAH-mahs)') +
+      field('mineCtx', 'When would you say it?', editing && editing.ctx, '(optional \u2014 used in \u201cWhat would you say?\u201d)', true) +
+      '<div class="login-error" id="mineError" role="alert"></div>' +
+      '<div class="quiz-row">' + (editing ? '<button class="ctrl-btn" id="mineCancel">Cancel</button>' : '') +
+        '<button class="ctrl-btn primary" id="mineSave">' + (editing ? 'Save changes' : 'Add phrase') + '</button></div>' +
+    '</div>' +
+    '<div class="panel-count">' + myPhrases.length + ' phrase' + (myPhrases.length === 1 ? '' : 's') + '</div>' +
+    '<ul class="voice-list">' + myPhrases.map((p, i) =>
+      '<li class="voice-row"><div class="voice-text"><div class="voice-es">' + esc(p.es) + '</div><div class="voice-en">' + esc(p.en) + '</div></div>' +
+        '<div class="voice-btns"><button class="voice-btn" data-act="edit" data-i="' + i + '">Edit</button>' +
+        '<button class="voice-btn del" data-act="del" data-i="' + i + '" aria-label="Delete">\u2715</button></div></li>').join('') + '</ul>');
+  const val = id => document.getElementById(id).value;
+  document.getElementById('mineSave').onclick = () => {
+    const p = cleanPhrase({ es: val('mineEs'), en: val('mineEn'), pron: val('minePron'), ctx: val('mineCtx') });
+    const err = document.getElementById('mineError');
+    if(!p) return (err.textContent = 'Please fill in the Spanish and what it means.');
+    if(myPhrases.some((q, i) => q.es.toLowerCase() === p.es.toLowerCase() && i !== editIndex)) return (err.textContent = 'That phrase is already in your list.');
+    if(editing){
+      // keep its progress if the Spanish changed
+      const oldId = cardId(MINE, editing), newId = cardId(MINE, p);
+      if(oldId !== newId && state.progress[oldId]){ state.progress[newId] = state.progress[oldId]; delete state.progress[oldId]; saveProgress(); }
+      myPhrases[editIndex] = p;
+    } else myPhrases.push(p);
+    syncMineDeck(); saveCustom();
+    showToast([{ kind: 'info', text: editing ? 'Saved.' : 'Added \u201c' + p.es + '\u201d to My phrases.' }]);
+    renderMinePanel();
+  };
+  if(editing) document.getElementById('mineCancel').onclick = () => renderMinePanel();
+  document.querySelectorAll('.voice-list .voice-btn').forEach(b => {
+    const i = +b.dataset.i;
+    b.onclick = () => {
+      if(b.dataset.act === 'edit') return renderMinePanel(i);
+      if(!b.classList.contains('armed')){ b.classList.add('armed'); b.textContent = 'Delete?'; return; }
+      delete state.progress[cardId(MINE, myPhrases[i])]; saveProgress();
+      myPhrases.splice(i, 1); syncMineDeck(); saveCustom();
+      renderMinePanel();
+    };
+  });
+}
 
 // ---- full-page panels (recordings, my phrases, progress), shown in place of the main app ----
 function showPanel(title, html){
@@ -826,7 +919,7 @@ function renderVoicePanel(deckKey){
 
 // ---- share a phrase (Messages, WhatsApp, …) ----
 function sharePhrase(card){
-  const text = card.es + ' (' + card.pron + ') \u2014 ' + card.en + '\n\nFrom Aprende Conmigo \ud83c\uddf2\ud83c\uddfd';
+  const text = card.es + (card.pron ? ' (' + card.pron + ')' : '') + ' \u2014 ' + card.en + '\n\nFrom Aprende Conmigo \ud83c\uddf2\ud83c\uddfd';
   const url = /^https?:$/.test(location.protocol) ? location.origin + location.pathname : undefined;
   if(navigator.share){
     navigator.share(url ? { text, url } : { text }).catch(() => {});
@@ -849,11 +942,13 @@ if('serviceWorker' in navigator && /^https?:$/.test(location.protocol) && locati
   }
   Voice.init();
   Profiles.setMenu([
+    { id: 'menuMine', label: 'My phrases', onClick: () => renderMinePanel() },
     { id: 'menuVoice', label: 'Record phrases in your voice', onClick: () => renderVoicePanel() },
   ]);
   // Shows the welcome / "who's practising?" / PIN screen as needed, then loads that profile.
   await Profiles.start(async () => {
     state = freshState();
+    await loadCustom();
     await loadProgress();
     afterChallengeEvent(true); // award anything existing progress already earns, quietly
     resetDeckState();
