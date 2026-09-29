@@ -45,6 +45,12 @@ It changes how questions are asked, never how often cards come back.
 | Mixed mode | harder types come later | as above | harder types come sooner |
 | Match the pairs | 4 pairs | 5 pairs | 6 pairs |
 
+## Offline and dark mode
+
+Once the app has been opened with a connection, it also opens without one
+(`sw.js` keeps a copy on the phone and picks up new versions whenever it's
+online). Dark mode follows the phone's own setting.
+
 ## Profiles
 
 The first time it opens, the app asks for a name (and an optional 4-digit PIN).
@@ -82,6 +88,7 @@ tab shows what went wrong.
 | `quiz.js` | Quiz question types, Mixed mode, answer checking, Match the pairs |
 | `app.js` | Screens, greeting, levels, export/import |
 | `storage.js` | Saves progress (browser storage, Claude artifact storage, or Scriptable) |
+| `sw.js` | Offline support: keeps a copy of the app on the phone |
 | `build.py` | Bundles everything into one page: `dist/site/` (website), `dist/spanish-app.html` (single file), `dist/Aprende Conmigo.js` (Scriptable) |
 | `tests/app.test.js` | Browser tests, run automatically before each publish |
 

@@ -736,6 +736,11 @@ document.getElementById('modeQuiz').onclick = () => { state.mode='quiz'; startSe
 document.getElementById('exportBtn').onclick = () => { state.syncPanel = state.syncPanel === 'export' ? null : 'export'; renderSync(); };
 document.getElementById('importBtn').onclick = () => { state.syncPanel = state.syncPanel === 'import' ? null : 'import'; renderSync(); };
 
+// Offline support when served as a website (not as a single file, artifact or in Scriptable).
+if('serviceWorker' in navigator && /^https?:$/.test(location.protocol) && location.hostname !== 'aprende-conmigo.local'){
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+
 (async function init(){
   if('speechSynthesis' in window){
     loadVoices();

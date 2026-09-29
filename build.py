@@ -5,7 +5,7 @@
    dist/Aprende Conmigo.js    — that same file, wrapped for Scriptable (iOS, optional)
 No build tools required beyond python3's standard library.
 """
-import base64, os, shutil, sys
+import base64, hashlib, os, shutil, sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 DIST = os.path.join(HERE, "dist")
@@ -64,6 +64,11 @@ with open(os.path.join(SITE, "index.html"), "w", encoding="utf-8") as f:
     f.write(shell)
 shutil.copytree(os.path.join(HERE, "icons"), os.path.join(SITE, "icons"))
 shutil.copy(os.path.join(HERE, "manifest.webmanifest"), SITE)
+# Offline support: the service worker's cache name carries this build's version,
+# so each publish replaces the copy saved on the phone.
+version = hashlib.sha1(shell.encode("utf-8")).hexdigest()[:12]
+with open(os.path.join(SITE, "sw.js"), "w", encoding="utf-8") as f:
+    f.write(read("sw.js").replace("__VERSION__", version))
 print("wrote", SITE)
 
 # --- Scriptable wrapper ---

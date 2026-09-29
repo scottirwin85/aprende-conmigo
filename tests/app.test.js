@@ -617,6 +617,41 @@ const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++
   ok(await pl.isVisible('#main') && await pl.evaluate(() => Object.keys(state.progress).length) === 1, 'signing back in keeps the progress');
   await lctx.close();
 
+  // 27. works offline (served as the website, like GitHub Pages)
+  const http = require('http');
+  const SITE = path.join(DIST, 'site');
+  const server = http.createServer((q, r) => {
+    let f = decodeURIComponent(q.url.split('?')[0]);
+    if (f.endsWith('/')) f += 'index.html';
+    fs.readFile(path.join(SITE, f), (err, data) => {
+      if (err) { r.writeHead(404); return r.end(); }
+      const type = { '.js': 'text/javascript', '.html': 'text/html', '.png': 'image/png', '.svg': 'image/svg+xml', '.webmanifest': 'application/manifest+json' }[path.extname(f)] || 'application/octet-stream';
+      r.writeHead(200, { 'Content-Type': type }); r.end(data);
+    });
+  });
+  await new Promise(res => server.listen(0, '127.0.0.1', res));
+  const siteUrl = 'http://127.0.0.1:' + server.address().port + '/';
+  const octx = await newCtx(); const po = await octx.newPage();
+  po.on('pageerror', e => { console.log('PAGEERROR-O', e.message); fails++; });
+  await po.goto(siteUrl); await appReady(po);
+  await po.evaluate(() => navigator.serviceWorker.ready);
+  await po.reload(); await appReady(po); // now controlled by the service worker, which saves a copy
+  await po.waitForFunction(async () => (await caches.keys()).some(k => k.startsWith('aprende-')));
+  await octx.setOffline(true);
+  await po.reload(); await appReady(po);
+  ok(await po.isVisible('#main') && (await po.textContent('#greeting')).includes('Sam'), 'opens with no connection once visited');
+  await octx.setOffline(false);
+  await octx.close(); server.close();
+
+  // 28. dark mode follows the phone setting
+  const dkctx = await newCtx(); const pk = await dkctx.newPage();
+  await pk.emulateMedia({ colorScheme: 'dark' }); await pk.goto(URL); await appReady(pk);
+  const darkBg = await pk.evaluate(() => getComputedStyle(document.body).backgroundColor);
+  await pk.emulateMedia({ colorScheme: 'light' });
+  const lightBg = await pk.evaluate(() => getComputedStyle(document.body).backgroundColor);
+  ok(darkBg === 'rgb(26, 22, 20)' && lightBg === 'rgb(251, 243, 231)', 'dark background in dark mode, cream in light (' + darkBg + ' / ' + lightBg + ')');
+  await dkctx.close();
+
   await browser.close();
   console.log(fails ? fails + ' FAILED' : 'ALL PASSED');
   process.exitCode = fails ? 1 : 0;
