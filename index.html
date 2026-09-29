@@ -21,7 +21,7 @@
   <header>
     <div class="eyebrow">Aprende Conmigo</div>
     <h1>Spanish, for him</h1>
-    <p class="sub">Real Mexican Spanish — starting with everyday words, leveling up into full conversational phrases, and resurfacing them over time so they stick.</p>
+    <div id="greeting"></div>
   </header>
 
   <div class="decks" id="decks"></div>
@@ -34,6 +34,7 @@
 
   <div id="reviewBanner"></div>
   <div class="stage" id="stage"></div>
+  <div id="challenges"></div>
   <div class="streak" id="streak"></div>
 
   <div class="sync">
@@ -44,10 +45,12 @@
     <div id="syncPanel"></div>
   </div>
 </div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <script src="content.js"></script>
 <script src="storage.js"></script>
 <script src="srs.js"></script>
+<script src="challenges.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

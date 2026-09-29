@@ -33,7 +33,8 @@ tab shows what went wrong.
 |---|---|
 | `content.js` | Decks, levels and cards |
 | `srs.js` | Spaced-repetition schedule: 10 min → 1 day → 3 days → 1 week → 2 weeks → 1 month → 3 months |
-| `app.js` | Screens, levels, quiz, export/import |
+| `challenges.js` | Daily challenges (3 new each day), the day streak and achievements |
+| `app.js` | Screens, greeting, levels, quiz, export/import |
 | `storage.js` | Saves progress (browser storage, Claude artifact storage, or Scriptable) |
 | `build.py` | Bundles everything into one page: `dist/site/` (website), `dist/spanish-app.html` (single file), `dist/Aprende Conmigo.js` (Scriptable) |
 | `tests/app.test.js` | Browser tests, run automatically before each publish |

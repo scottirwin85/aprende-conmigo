@@ -1,6 +1,7 @@
 // app.js — state, spaced-repetition bookkeeping, and rendering.
 // Depends on content.js (DECKS, ICONS, iconSvg), storage.js (Storage,
-// encodeProgressBlob, decodeProgressBlob) and srs.js (SRS) being loaded first.
+// encodeProgressBlob, decodeProgressBlob), srs.js (SRS) and challenges.js
+// (Challenges) being loaded first.
 
 const LEVEL_UNLOCK_BOX = 2; // a level "unlocks the next one" once every card has been gotten right twice, on schedule
 const MASTER_BOX = 4; // a deck is "mastered" once every card is on a week-long (or longer) gap
@@ -20,6 +21,7 @@ let state = {
   levelUp: null,     // {deck, to} once an answer unlocks something new; shown straight away
   notice: '',        // one-off message shown under the next flashcard
   correctTotal: 0,   // every correct answer ever (stored under the old 'streak' key)
+  stats: Challenges.blankStats(), // day streak, daily challenges, achievements
   progress: {},      // cardId -> {box, due}
   syncPanel: null,   // null | 'export' | 'import'
   syncMessage: '',
@@ -91,6 +93,10 @@ async function loadProgress(){
     if(raw2) state.correctTotal = Math.max(0, parseInt(raw2, 10) || 0);
   }catch(e){}
   try{
+    const raw4 = await Storage.get('challenges');
+    if(raw4) state.stats = Challenges.clean(JSON.parse(raw4));
+  }catch(e){}
+  try{
     const raw3 = await Storage.get('unlocked');
     if(raw3) state.unlocked = cleanUnlocked(JSON.parse(raw3));
   }catch(e){}
@@ -101,6 +107,7 @@ async function loadProgress(){
 async function saveProgress(){ try{ await Storage.set('progress', JSON.stringify(state.progress)); }catch(e){} }
 async function saveCorrectTotal(){ try{ await Storage.set('streak', String(state.correctTotal)); }catch(e){} }
 async function saveUnlocked(){ try{ await Storage.set('unlocked', JSON.stringify(state.unlocked)); }catch(e){} }
+async function saveStats(){ try{ await Storage.set('challenges', JSON.stringify(state.stats)); }catch(e){} }
 
 function cleanUnlocked(raw){
   const out = {};
@@ -199,13 +206,139 @@ function recordAnswer(id, correct){
   if(!early){ state.progress[id] = after; saveProgress(); }
   if(correct){ state.correctTotal++; saveCorrectTotal(); }
   const was = state.unlocked[state.deck] || 1;
-  const now = unlockProgress(state.deck);
-  if(now > was){
-    state.unlocked[state.deck] = now;
+  const reached = unlockProgress(state.deck);
+  if(reached > was){
+    state.unlocked[state.deck] = reached;
     saveUnlocked();
-    state.levelUp = { deck: state.deck, to: now - 1 }; // index of the new level, or levels.length = deck finished
+    state.levelUp = { deck: state.deck, to: reached - 1 }; // index of the new level, or levels.length = deck finished
   }
+
+  // challenges: every answer counts toward the day streak and today's challenges
+  const now = Date.now();
+  Challenges.recordAnswer(state.stats, { deck: state.deck, correct, mode: state.mode, now });
+  if(!early && !state.practice && !activeCards().some(c => SRS.isDue(cardRecord(c._id), now))){
+    Challenges.recordCleared(state.stats, now);
+  }
+  const lastOfRound = state.idx + 1 === state.order.length;
+  if(state.mode === 'quiz' && lastOfRound && state.order.length >= 5 && state.correctCount === state.order.length){
+    Challenges.recordPerfect(state.stats, now);
+  }
+  afterChallengeEvent();
   return early;
+}
+
+// ---- challenges, greeting and toasts ----
+function deckNames(){
+  const out = {};
+  Object.keys(DECKS).forEach(key => { out[key] = DECKS[key].name; });
+  return out;
+}
+function achievementContext(){
+  const keys = Object.keys(DECKS);
+  return {
+    known: keys.reduce((n, key) => n + deckTotals(key).known, 0),
+    totalCards: CARD_IDS.size,
+    correctTotal: state.correctTotal,
+    levelUps: keys.reduce((n, key) => n + unlockProgress(key) - 1, 0),
+    decksFinished: keys.filter(isDeckFinished).length,
+    deckCount: keys.length,
+    decksMastered: keys.filter(isDeckMastered).length,
+  };
+}
+// Checks for newly finished challenges/achievements, saves, and celebrates them.
+function afterChallengeEvent(silent){
+  const fresh = Challenges.evaluate(state.stats, achievementContext(), Date.now(), deckNames());
+  saveStats();
+  if(fresh.length && !silent) showToast(fresh);
+  renderChallenges();
+  renderStats();
+}
+
+let toastTimer = null;
+function showToast(items){
+  const el = document.getElementById('toast');
+  el.innerHTML = items.map(i => i.kind === 'daily'
+    ? '<div>✅ <b>Challenge done:</b> ' + esc(i.text) + '</div>'
+    : '<div>🏆 <b>' + esc(i.text) + '</b> \u2014 ' + esc(i.en) + '</div>').join('');
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 4500);
+}
+
+function timeGreeting(now){
+  const h = new Date(now).getHours();
+  if(h >= 5 && h < 12) return { es: '¡Buenos días!', en: 'Good morning', icon: 'sun', ask: '¿Cómo amaneciste?', askEn: 'How did you sleep?' };
+  if(h >= 12 && h < 19) return { es: '¡Buenas tardes!', en: 'Good afternoon', icon: 'sun', ask: '¿Qué tal tu día?', askEn: 'How\u2019s your day going?' };
+  if(h >= 19) return { es: '¡Buenas noches!', en: 'Good evening', icon: 'moon', ask: '¿Cómo te fue hoy?', askEn: 'How did today go?' };
+  return { es: '¡Buenas noches!', en: 'It\u2019s late', icon: 'moon', ask: '¿No puedes dormir?', askEn: 'Can\u2019t sleep?' };
+}
+// Cards due now across everything unlocked.
+function dueEverywhere(now){
+  return Object.keys(DECKS).reduce((n, key) => {
+    const cards = isDeckFinished(key) ? deckCards(key)
+      : DECKS[key].levels.slice(0, unlockedLevelCount(key)).reduce((out, _, li) => out.concat(levelCards(key, li)), []);
+    return n + cards.filter(c => SRS.isDue(cardRecord(c._id), now)).length;
+  }, 0);
+}
+function renderGreeting(){
+  const now = Date.now();
+  const g = timeGreeting(now);
+  const due = dueEverywhere(now);
+  const streak = Challenges.currentStreak(state.stats, now);
+  const practisedToday = state.stats.lastDay === Challenges.dayKey(now);
+  const phrases = due + ' phrase' + (due === 1 ? '' : 's');
+  const status = due && streak && !practisedToday ? 'Keep your ' + streak + '-day streak going \u2014 ' + phrases + ' ready.'
+    : due ? phrases + ' ready to practise.'
+    : 'All caught up. ¡Bien hecho! (Well done!)';
+  const el = document.getElementById('greeting');
+  el.innerHTML =
+    '<button class="greeting-btn" id="greetingBtn" title="Hear it">' +
+      iconSvg(g.icon, 'greeting-icon') +
+      '<span class="greeting-text">' +
+        '<span class="greeting-es">' + g.es + ' <span class="greeting-ask">' + g.ask + '</span> <span aria-hidden="true">🔊</span></span>' +
+        '<span class="greeting-en">' + g.en + ' \u2014 ' + g.askEn + '</span>' +
+        '<span class="greeting-status">' + status + '</span>' +
+      '</span>' +
+    '</button>';
+  document.getElementById('greetingBtn').onclick = () => speak(g.es + ' ' + g.ask);
+}
+
+function renderChallenges(){
+  const el = document.getElementById('challenges');
+  const now = Date.now();
+  const daily = Challenges.dailyStatus(state.stats, now, deckNames());
+  const doneCount = daily.filter(c => c.done).length;
+  const ach = Challenges.achievementStatus(state.stats, achievementContext());
+  const earned = ach.filter(a => a.earned).length;
+  const wasOpen = !!(document.getElementById('achDetails') || {}).open;
+  el.innerHTML =
+    '<div class="ch-card">' +
+      '<div class="ch-head"><span class="ch-title">Today\u2019s challenges</span><span class="ch-count">' + doneCount + '/' + daily.length + '</span></div>' +
+      '<ul class="ch-list">' + daily.map(c =>
+        '<li class="ch-item' + (c.done ? ' complete' : '') + '">' +
+          '<span class="ch-check" aria-hidden="true">' + (c.done ? '✓' : '') + '</span>' +
+          '<span class="ch-text">' + esc(c.text) + (c.done ? '<span class="sr-only"> (done)</span>' : '') + '</span>' +
+          '<span class="ch-prog">' + c.value + '/' + c.target + '</span>' +
+          '<span class="ch-bar"><span style="width:' + Math.round(c.value / c.target * 100) + '%"></span></span>' +
+        '</li>').join('') + '</ul>' +
+      (doneCount === daily.length ? '<div class="ch-alldone">¡Reto cumplido! (Challenge met!) New challenges tomorrow.</div>' : '') +
+      '<details class="ach" id="achDetails"' + (wasOpen ? ' open' : '') + '>' +
+        '<summary>Achievements \u00b7 ' + earned + ' of ' + ach.length + '</summary>' +
+        '<div class="ach-grid">' + ach.map(a =>
+          '<div class="ach-item' + (a.earned ? ' earned' : '') + '">' +
+            iconSvg(a.icon, 'ach-icon') +
+            '<div><div class="ach-es">' + esc(a.es) + '</div><div class="ach-en">' + esc(a.en) + '</div>' +
+            (a.earned ? '' : '<div class="ach-prog">' + a.value + '/' + a.target + '</div>') + '</div>' +
+          '</div>').join('') + '</div>' +
+      '</details>' +
+    '</div>';
+}
+
+// Plays a card's phrase; counts toward the listening challenges.
+function hearCard(text){
+  speak(text);
+  Challenges.recordListen(state.stats, Date.now());
+  afterChallengeEvent();
 }
 
 function resetDeckState(){
@@ -290,8 +423,9 @@ function renderModes(){
 
 function renderStats(){
   const known = Object.keys(DECKS).reduce((n, key) => n + deckTotals(key).known, 0);
+  const streak = Challenges.currentStreak(state.stats, Date.now());
   document.getElementById('streak').innerHTML =
-    '🔥 <b>' + known + '</b> phrases known · <b>' + state.correctTotal + '</b> correct answers';
+    '<span>🔥 ' + (streak ? '<b>' + streak + '</b>-day streak' : 'No streak yet') + ' · <b>' + known + '</b> phrases known · <b>' + state.correctTotal + '</b> correct answers</span>';
 }
 
 function renderBanner(){
@@ -432,14 +566,15 @@ function renderFlash(){
     state.flipped = !state.flipped;
     flipCard.classList.toggle('flipped', state.flipped);
     flipCard.setAttribute('aria-pressed', String(state.flipped));
+    if(state.flipped){ Challenges.recordFlip(state.stats, Date.now()); afterChallengeEvent(); }
   };
   flipCard.onclick = (e) => { if(!e.target.closest('.sound-btn')) flip(); };
   flipCard.onkeydown = (e) => {
     if(e.target !== flipCard) return;
     if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); flip(); }
   };
-  document.getElementById('soundBtn').onclick = (e) => { e.stopPropagation(); speak(card.es); };
-  document.getElementById('soundBtnBack').onclick = (e) => { e.stopPropagation(); speak(card.es); };
+  document.getElementById('soundBtn').onclick = (e) => { e.stopPropagation(); hearCard(card.es); };
+  document.getElementById('soundBtnBack').onclick = (e) => { e.stopPropagation(); hearCard(card.es); };
   document.getElementById('skipBtn').onclick = () => {
     recordAnswer(card._id, false);
     // show it again later in this session, unless it's already queued again
@@ -493,7 +628,7 @@ function renderQuiz(){
     '<div class="card-sub" style="opacity:0.55;font-style:italic;margin-top:2px;">' + esc(card.pron) + '</div>' +
     '<div class="options" id="optsWrap"></div>';
 
-  document.getElementById('quizSoundBtn').onclick = () => speak(card.es);
+  document.getElementById('quizSoundBtn').onclick = () => hearCard(card.es);
   const wrap = document.getElementById('optsWrap');
   options.forEach(opt=>{
     const b = document.createElement('button');
@@ -525,7 +660,7 @@ function renderQuiz(){
       next.onclick = nextCard;
       stage.appendChild(next);
       next.focus();
-      renderDecks(); renderLevelChips(); renderStats();
+      renderDecks(); renderLevelChips(); renderStats(); renderGreeting();
     };
     wrap.appendChild(b);
   });
@@ -565,7 +700,9 @@ function applyImport(text){
   state.unlocked = unlocked;
   Object.keys(DECKS).forEach(key => { state.unlocked[key] = unlockProgress(key); });
   state.correctTotal = Math.max(state.correctTotal, total);
-  saveProgress(); saveUnlocked(); saveCorrectTotal();
+  if(payload.challenges) state.stats = Challenges.merge(state.stats, payload.challenges);
+  saveProgress(); saveUnlocked(); saveCorrectTotal(); saveStats();
+  afterChallengeEvent(true);
   state.levelByDeck = {};
   return Object.keys(incoming).length;
 }
@@ -573,7 +710,7 @@ function applyImport(text){
 function renderSync(){
   const panelEl = document.getElementById('syncPanel');
   if(state.syncPanel === 'export'){
-    const blob = encodeProgressBlob({ version: 2, progress: state.progress, unlocked: state.unlocked, streak: state.correctTotal, exportedAt: Date.now() });
+    const blob = encodeProgressBlob({ version: 2, progress: state.progress, unlocked: state.unlocked, streak: state.correctTotal, challenges: state.stats, exportedAt: Date.now() });
     panelEl.innerHTML =
       '<div class="sync-panel">' +
         '<textarea id="exportBox" readonly aria-label="Progress code"></textarea>' +
@@ -614,6 +751,8 @@ function renderSync(){
 }
 
 function render(){
+  renderGreeting();
+  renderChallenges();
   renderDecks();
   renderLevelChips();
   renderModes();
@@ -634,6 +773,9 @@ document.getElementById('importBtn').onclick = () => { state.syncPanel = state.s
     window.speechSynthesis.onvoiceschanged = loadVoices; // voices load asynchronously in most browsers
   }
   await loadProgress();
+  afterChallengeEvent(true); // award anything existing progress already earns, quietly
   resetDeckState();
   render();
+  // Keep the greeting and today's challenges current if the app stays open past a boundary.
+  setInterval(() => { renderGreeting(); renderChallenges(); renderStats(); }, 60 * 1000);
 })();

@@ -26,14 +26,14 @@ def replace_once(text, old, new, what):
     return text.replace(old, new)
 
 css = read("styles.css")
-js = "\n".join([read("content.js"), read("storage.js"), read("srs.js"), read("app.js")])
+js = "\n".join([read("content.js"), read("storage.js"), read("srs.js"), read("challenges.js"), read("app.js")])
 if "</script" in js.lower():
     sys.exit("build.py: a source file contains '</script', which would end the inline script early.")
 
 shell = read("index.html")
 if shell.count(HOST_MARKER) != 1:
     sys.exit("build.py: index.html must contain %s exactly once (the Scriptable wrapper uses it)." % HOST_MARKER)
-# swap the <link rel=stylesheet> for an inline <style>, and the four <script src>
+# swap the <link rel=stylesheet> for an inline <style>, and the <script src>
 # tags for one inline <script>, so the result is a single self-contained file.
 shell = replace_once(shell,
     '<link rel="stylesheet" href="styles.css">',
@@ -43,9 +43,10 @@ shell = replace_once(shell,
     '<script src="content.js"></script>\n'
     '<script src="storage.js"></script>\n'
     '<script src="srs.js"></script>\n'
+    '<script src="challenges.js"></script>\n'
     '<script src="app.js"></script>',
     "<script>\n" + js + "\n</script>",
-    "four <script src> tags")
+    "five <script src> tags")
 
 bundled_path = os.path.join(DIST, "spanish-app.html")
 with open(bundled_path, "w", encoding="utf-8") as f:

@@ -239,6 +239,99 @@ const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++
   ok(seenInPage === 2, 'Scriptable: progress reloaded on next launch');
   await r2.close();
 
+  // 17. greeting follows the time of day
+  for (const [t, es, en] of [['08:30', '¡Buenos días!', 'Good morning'], ['15:00', '¡Buenas tardes!', 'Good afternoon'],
+                            ['20:00', '¡Buenas noches!', 'Good evening'], ['02:00', '¡Buenas noches!', 'It’s late']]) {
+    const pg = await browser.newPage();
+    await pg.clock.install({ time: new Date('2026-09-29T' + t + ':00') });
+    await pg.goto(URL);
+    const g = await pg.textContent('#greeting');
+    ok(g.includes(es) && g.includes(en) && g.includes('40 phrases ready'), 'greeting at ' + t + ': ' + es + ' / ' + en);
+    await pg.close();
+  }
+
+  // 18-22. daily challenges, streak, achievements
+  const pc = await browser.newPage();
+  pc.on('pageerror', e => { console.log('PAGEERROR-C', e.message); fails++; });
+  await pc.clock.install({ time: new Date('2026-09-29T09:00:00') });
+  await pc.goto(URL);
+  const picks = await pc.evaluate(() => {
+    const names = deckNames(), out = {};
+    for (let d = 0; d < 20; d++) {
+      const t = new Date(2026, 8, 1 + d, 12).getTime();
+      const a = Challenges.dailyStatus(Challenges.blankStats(), t, names).map(c => c.id);
+      const b = Challenges.dailyStatus(Challenges.blankStats(), t, names).map(c => c.id);
+      out[d] = { a, same: a.join() === b.join() };
+    }
+    return out;
+  });
+  const days = Object.values(picks);
+  ok(days.every(d => d.same && d.a.length === 3 && new Set(d.a).size === 3), 'three distinct daily challenges, same all day');
+  ok(days.every(d => d.a.filter(id => id.startsWith('correct')).length === 1), 'each day has exactly one "get N right" challenge');
+  ok(new Set(days.map(d => d.a.join())).size > 5, 'challenges change from day to day');
+
+  const listenBefore = await pc.evaluate(() => state.stats.listenedTotal);
+  await pc.click('#soundBtn'); await pc.click('.card-word');
+  ok(await pc.evaluate(() => state.stats.listenedTotal) === listenBefore + 1, 'tapping 🔊 counts as listening');
+  ok(await pc.evaluate(() => state.stats.days[Challenges.dayKey(Date.now())].flipped) === 1, 'flipping to the back counts');
+
+  const day = await pc.evaluate(() => Challenges.dailyStatus(state.stats, Date.now(), deckNames()));
+  const correctGoal = day.find(c => c.id.startsWith('correct')).target;
+  for (let i = 0; i < correctGoal; i++) {
+    await pc.evaluate(() => { if (state.idx >= state.order.length) startSession(true); render(); });
+    await pc.click('#knowBtn');
+  }
+  const after = await pc.evaluate(() => Challenges.dailyStatus(state.stats, Date.now(), deckNames()));
+  ok(after.find(c => c.id.startsWith('correct')).done, 'answering ' + correctGoal + ' right completes the daily goal');
+  ok((await pc.textContent('#toast')).includes('Challenge done') || (await pc.textContent('#challenges')).includes(correctGoal + '/' + correctGoal), 'challenge completion shown');
+  ok(await pc.evaluate(() => !!state.stats.earned.first), 'achievement: Primeros pasos earned');
+  ok((await pc.textContent('#streak')).includes('1-day streak'), 'streak shows 1 day: ' + await pc.textContent('#streak'));
+
+  // streak rules, directly
+  const streaks = await pc.evaluate(() => {
+    const s = Challenges.blankStats(), at = (d, h) => new Date(2026, 9, d, h).getTime();
+    const ev = t => Challenges.recordAnswer(s, { deck: 'food', correct: true, mode: 'flash', now: t });
+    ev(at(1, 9)); ev(at(1, 20)); const a = s.streak;
+    ev(at(2, 8)); const b = s.streak;
+    const c = Challenges.currentStreak(s, at(3, 12));   // missed nothing yet
+    const d = Challenges.currentStreak(s, at(4, 12));   // missed day 3 -> broken
+    ev(at(4, 12)); const e = s.streak;
+    ev(at(4, 23)); return { a, b, c, d, e, best: s.bestStreak, late: s.late, early: s.early };
+  });
+  ok(streaks.a === 1 && streaks.b === 2 && streaks.c === 2, 'streak counts consecutive days');
+  ok(streaks.d === 0 && streaks.e === 1 && streaks.best === 2, 'missing a day resets the streak; best is kept');
+  ok(streaks.late && !streaks.early, 'practising after 10pm earns the study-night flag');
+
+  // quiz run, perfect round and clearing a level
+  const quiz = await pc.evaluate(() => {
+    state.progress = {}; state.stats = Challenges.blankStats(); state.mode = 'quiz'; startSession(false);
+    state.order = state.order.slice(0, 5);
+    for (let i = 0; i < 5; i++) { state.correctCount++; recordAnswer(activeCards()[state.order[state.idx]]._id, true); state.idx++; }
+    const d = state.stats.days[Challenges.dayKey(Date.now())];
+    return { run: d.bestRun, perfect: d.perfect };
+  });
+  ok(quiz.run === 5 && quiz.perfect === 1, 'quiz: 5 in a row and a perfect round recorded');
+  const cleared = await pc.evaluate(() => {
+    state.mode = 'flash'; startSession(false);
+    while (state.idx < state.order.length) { recordAnswer(activeCards()[state.order[state.idx]]._id, true); state.idx++; }
+    return state.stats.days[Challenges.dayKey(Date.now())].cleared;
+  });
+  ok(cleared >= 1, 'clearing everything due in a level is recorded');
+
+  // export / import carries achievements and best streak
+  const merged2 = await pc.evaluate(() => {
+    const code = encodeProgressBlob({ progress: { 'food/Repetir': { box: 1, due: 1, seen: 1 } },
+      challenges: { bestStreak: 12, earned: { streak7: 1000, bogus: 5 }, listenedTotal: 3 } });
+    const before = state.stats.listenedTotal;
+    applyImport(code);
+    return { best: state.stats.bestStreak, s7: state.stats.earned.streak7, bogus: 'bogus' in state.stats.earned,
+             listened: state.stats.listenedTotal >= before, s3: !!state.stats.earned.streak3 };
+  });
+  ok(merged2.best === 12 && merged2.s7 === 1000 && !merged2.bogus && merged2.s3, 'import merges achievements and best streak');
+  ok(await pc.evaluate(() => { state.syncPanel = 'export'; renderSync(); return !!decodeProgressBlob(document.getElementById('exportBox').value).challenges; }),
+     'export includes challenges');
+  await pc.close();
+
   await browser.close();
   console.log(fails ? fails + ' FAILED' : 'ALL PASSED');
   process.exitCode = fails ? 1 : 0;
