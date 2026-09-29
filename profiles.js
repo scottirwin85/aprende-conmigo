@@ -13,6 +13,7 @@ const Profiles = (function () {
   let onEnter = null;   // app callback, called with the profile once someone is in
   let entered = null;   // profile currently in use
   let menuListener = false;
+  let extraMenu = [];   // [{id, label, onClick}] added by the app (recordings, my phrases, progress)
 
   const $ = id => document.getElementById(id);
   function esc(s) {
@@ -70,6 +71,7 @@ const Profiles = (function () {
   // ---- screens (shown in #login while #main is hidden) ----
   function showScreen(html) {
     $('main').hidden = true;
+    if ($('panel')) $('panel').hidden = true;
     const el = $('login');
     el.hidden = false;
     el.innerHTML = '<div class="login-card">' + html + '</div>';
@@ -224,6 +226,7 @@ const Profiles = (function () {
         '<span>' + esc(entered.name) + '</span></button>' +
       '<div class="profile-menu" id="profileMenu" hidden>' +
         '<button id="menuSwitch">Switch profile</button>' +
+        extraMenu.map(m => '<button id="' + m.id + '">' + esc(m.label) + '</button>').join('') +
         '<button id="menuEdit">Edit name or PIN</button>' +
         '<button id="menuLogout" class="menu-logout">Log out</button>' +
       '</div>';
@@ -244,6 +247,7 @@ const Profiles = (function () {
     $('menuSwitch').onclick = () => { close(); showPicker(); };
     $('menuEdit').onclick = () => { close(); showForm(entered); };
     $('menuLogout').onclick = () => { close(); logout(); };
+    extraMenu.forEach(m => { $(m.id).onclick = () => { close(); m.onClick(); }; });
   }
 
   // Unlike "Switch profile", nobody is remembered: the next launch asks who's practising.
@@ -264,5 +268,7 @@ const Profiles = (function () {
     else showPicker();
   }
 
-  return { start, logout, current: () => entered };
+  function setMenu(items) { extraMenu = items; renderChip(); }
+
+  return { start, logout, setMenu, current: () => entered };
 })();

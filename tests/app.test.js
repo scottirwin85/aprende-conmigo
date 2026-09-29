@@ -652,6 +652,60 @@ const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++
   ok(darkBg === 'rgb(26, 22, 20)' && lightBg === 'rgb(251, 243, 231)', 'dark background in dark mode, cream in light (' + darkBg + ' / ' + lightBg + ')');
   await dkctx.close();
 
+  { // 29. your own voice + sharing (own block: keeps its names separate)
+  const vctx = await newCtx();
+  await vctx.addInitScript(() => {
+    // Stand-in microphone and recorder, and spies on playback and sharing.
+    window.__played = []; window.__spoken = []; window.__shared = [];
+    navigator.mediaDevices.getUserMedia = async () => ({ getTracks: () => [{ stop(){} }] });
+    window.MediaRecorder = class {
+      constructor(){ this.state = 'inactive'; this.mimeType = 'audio/webm'; }
+      static isTypeSupported(t){ return t === 'audio/webm'; }
+      start(){ this.state = 'recording'; }
+      stop(){ this.state = 'inactive'; this.ondataavailable({ data: new Blob(['clip'], { type: 'audio/webm' }) }); this.onstop(); }
+    };
+    HTMLMediaElement.prototype.play = function(){ window.__played.push(this.src); return Promise.resolve(); };
+    speechSynthesis.speak = u => window.__spoken.push(u.text);
+    navigator.share = async d => { window.__shared.push(d); };
+  });
+  const pv = await vctx.newPage();
+  pv.on('pageerror', e => { console.log('PAGEERROR-V', e.message); fails++; });
+  await pv.goto(URL); await appReady(pv);
+  await pv.click('#chipBtn'); await pv.click('#menuVoice');
+  ok(await pv.isVisible('#panel') && !(await pv.isVisible('#main')) && (await pv.$$('.voice-row')).length === 30, 'recording screen lists the deck\'s 30 phrases');
+  const firstEs = await pv.textContent('.voice-row .voice-es');
+  // force: the Stop button pulses, and the test tool would otherwise wait for it to stop moving
+  const recBtn = pv.locator('.voice-row').nth(0).locator('.voice-btn.rec');
+  await recBtn.click();
+  ok((await recBtn.textContent()) === 'Stop', 'record button turns into Stop while recording');
+  await recBtn.click({ force: true });
+  ok(await pv.evaluate(() => recording === null), 'tapping Stop ends the recording (no second one starts)');
+  await pv.waitForSelector('.voice-row.has');
+  ok((await pv.textContent('.panel-count')).startsWith('1 of 30') && await pv.evaluate(es => Voice.has(es), firstEs), 'recording is saved');
+  await pv.click('#panelBack');
+  ok(await pv.isVisible('#main'), 'back returns to the app');
+  const before = await pv.evaluate(() => ({ played: __played.length, spoken: __spoken.length }));
+  await pv.evaluate(es => speak(es), firstEs); await pv.waitForTimeout(50);
+  const after = await pv.evaluate(() => ({ played: __played.length, spoken: __spoken.length, src: __played[__played.length - 1] }));
+  ok(after.played === before.played + 1 && after.spoken === before.spoken && after.src.startsWith('blob:'), 'speaker plays your recording instead of the phone voice');
+  await pv.evaluate(() => speak('Nada grabado aquí'));
+  ok(await pv.evaluate(() => __spoken.includes('Nada grabado aquí')), 'phrases without a recording still use the phone voice');
+  await pv.reload(); await appReady(pv);
+  await pv.waitForFunction(es => Voice.has(es), firstEs);
+  ok(true, 'recordings survive a restart');
+  await pv.click('#chipBtn'); await pv.click('#menuVoice');
+  await pv.click('.voice-row.has .voice-btn.del'); await pv.click('.voice-row.has .voice-btn.del');
+  await pv.waitForFunction(() => !document.querySelector('.voice-row.has'));
+  ok(!(await pv.evaluate(es => Voice.has(es), firstEs)), 'recording can be deleted (two taps)');
+  await pv.click('#panelBack');
+  await pv.click('.card-word'); await pv.click('#shareBtn');
+  const shared = await pv.evaluate(() => __shared[0]);
+  const shownEs = await pv.textContent('.face-front .card-word');
+  ok(shared && shared.text.includes(shownEs) && shared.text.includes('Aprende Conmigo'), 'Share sends the phrase to the share sheet');
+  ok(await pv.evaluate(() => document.getElementById('flipCard').classList.contains('flipped')), "tapping Share doesn't flip the card back");
+  await vctx.close();
+  }
+
   await browser.close();
   console.log(fails ? fails + ' FAILED' : 'ALL PASSED');
   process.exitCode = fails ? 1 : 0;

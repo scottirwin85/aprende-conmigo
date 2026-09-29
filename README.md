@@ -45,6 +45,14 @@ It changes how questions are asked, never how often cards come back.
 | Mixed mode | harder types come later | as above | harder types come sooner |
 | Match the pairs | 4 pairs | 5 pairs | 6 pairs |
 
+## Your voice, and sharing phrases
+
+- **Record phrases in your voice** (in the menu under your name): record a
+  phrase and every speaker button plays your recording instead of the
+  phone's voice. Recordings stay on the phone (shared by all its profiles).
+- **Share this phrase** on the back of a flashcard sends it through the
+  phone's share sheet (Messages, WhatsApp, …).
+
 ## Offline and dark mode
 
 Once the app has been opened with a connection, it also opens without one
@@ -88,6 +96,7 @@ tab shows what went wrong.
 | `quiz.js` | Quiz question types, Mixed mode, answer checking, Match the pairs |
 | `app.js` | Screens, greeting, levels, export/import |
 | `storage.js` | Saves progress (browser storage, Claude artifact storage, or Scriptable) |
+| `voice.js` | Your own recordings: record, store (IndexedDB), play |
 | `sw.js` | Offline support: keeps a copy of the app on the phone |
 | `build.py` | Bundles everything into one page: `dist/site/` (website), `dist/spanish-app.html` (single file), `dist/Aprende Conmigo.js` (Scriptable) |
 | `tests/app.test.js` | Browser tests, run automatically before each publish |

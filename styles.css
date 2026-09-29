@@ -257,3 +257,30 @@ button:focus-visible, .card:focus-visible{ outline:3px solid var(--marigold); ou
 .diff-btn.active{ border-color:var(--teal); background:var(--tint-teal); color:var(--teal-dark); }
 .difficulty-blurb{ font-size:11.5px; color:rgba(var(--ink-rgb),0.55); line-height:1.4; margin:0 0 14px; }
 .profile-menu .menu-logout{ border-top:1px solid var(--line); border-radius:0 0 8px 8px; margin-top:4px; color:var(--plum-ink); }
+
+/* full-page panels */
+.panel-head{ padding-top:18px; }
+.panel-back{ font-size:14px; text-decoration:none; color:var(--teal-dark); }
+.panel-title{ margin-top:10px; font-size:28px; }
+.panel-sub{ font-size:14px; line-height:1.5; color:rgba(var(--ink-rgb),0.65); margin:0 0 14px; }
+.panel-chips{ display:flex; flex-wrap:wrap; gap:6px; margin:6px 0 12px; }
+.panel-chips .level-chip{ flex:none; padding:8px 12px; color:rgba(var(--ink-rgb),0.7); }
+.panel-count{ font-size:12.5px; font-weight:600; color:var(--teal-dark); margin-bottom:8px; }
+
+/* your own voice */
+.voice-list{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:8px; }
+.voice-row{ display:flex; align-items:center; gap:10px; padding:10px 12px; border:1px solid var(--line); border-radius:12px; background:var(--surface); }
+.voice-row.has{ border-color:rgba(27,107,120,0.45); }
+.voice-text{ flex:1; min-width:0; }
+.voice-es{ font-family:var(--font-display); font-weight:600; font-size:16px; }
+.voice-en{ font-size:12px; color:rgba(var(--ink-rgb),0.6); margin-top:2px; }
+.voice-btns{ display:flex; gap:6px; align-items:center; flex:none; }
+.voice-btn{ min-width:36px; height:36px; padding:0 10px; border-radius:18px; border:1px solid var(--line); background:var(--surface); font-family:var(--font-body); font-size:13px; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; color:var(--teal-dark); }
+.voice-btn .speaker-svg{ width:16px; height:16px; }
+.voice-btn.rec{ background:var(--plum); border-color:var(--plum); color:#fff; }
+.voice-btn.recording{ animation:pulse 1s ease-in-out infinite; }
+.voice-btn.del{ color:rgba(var(--ink-rgb),0.5); }
+.voice-btn.del.armed{ color:var(--plum-ink); border-color:var(--plum); }
+
+/* share */
+.share-btn{ margin-top:14px; padding:6px 14px; border-radius:16px; border:1px solid rgba(255,255,255,0.45); background:rgba(255,255,255,0.12); color:#fff; font-family:var(--font-body); font-size:12.5px; font-weight:600; cursor:pointer; }

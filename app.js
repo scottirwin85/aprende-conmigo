@@ -140,7 +140,16 @@ function cleanUnlocked(raw){
 // ---- speech ----
 let voices = [];
 function loadVoices(){ try{ voices = window.speechSynthesis.getVoices() || []; }catch(e){} }
+// Plays your own recording of the phrase if there is one (voice.js), else the phone's voice.
 function speak(text){
+  if(typeof Voice !== 'undefined' && Voice.has(text)){
+    if('speechSynthesis' in window) window.speechSynthesis.cancel();
+    Voice.play(text, level().speechRate / DIFFICULTY.normal.speechRate).catch(() => phoneSpeak(text));
+    return;
+  }
+  phoneSpeak(text);
+}
+function phoneSpeak(text){
   if(!('speechSynthesis' in window)) return;
   text = text.replace(/\s*\/\s*/g, ', '); // "orgulloso / orgullosa" -> read both with a pause, not "slash"
   if(!voices.length) loadVoices();
@@ -276,7 +285,7 @@ function afterChallengeEvent(silent){
 let toastTimer = null;
 function showToast(items){
   const el = document.getElementById('toast');
-  el.innerHTML = items.map(i => i.kind === 'daily'
+  el.innerHTML = items.map(i => i.kind === 'info' ? '<div>' + esc(i.text) + '</div>' : i.kind === 'daily'
     ? '<div>✅ <b>Challenge done:</b> ' + esc(i.text) + '</div>'
     : '<div>🏆 <b>' + esc(i.text) + '</b> \u2014 ' + esc(i.en) + '</div>').join('');
   el.classList.add('show');
@@ -572,6 +581,7 @@ function renderFlash(){
         iconSvg(card.icon) +
         '<div class="card-word" style="font-size:20px;">' + esc(card.en) + '</div>' +
         '<div class="card-sub">' + esc(card.es) + ' · ' + esc(card.pron) + '</div>' +
+        '<button class="share-btn" id="shareBtn">Share this phrase</button>' +
       '</div>' +
     '</div></div>' +
     '<div class="card-controls">' +
@@ -596,6 +606,7 @@ function renderFlash(){
   };
   document.getElementById('soundBtn').onclick = (e) => { e.stopPropagation(); hearCard(card.es); };
   document.getElementById('soundBtnBack').onclick = (e) => { e.stopPropagation(); hearCard(card.es); };
+  document.getElementById('shareBtn').onclick = (e) => { e.stopPropagation(); sharePhrase(card); };
   document.getElementById('skipBtn').onclick = () => {
     recordAnswer(card._id, false);
     // show it again later in this session, unless it's already queued again
@@ -736,6 +747,96 @@ document.getElementById('modeQuiz').onclick = () => { state.mode='quiz'; startSe
 document.getElementById('exportBtn').onclick = () => { state.syncPanel = state.syncPanel === 'export' ? null : 'export'; renderSync(); };
 document.getElementById('importBtn').onclick = () => { state.syncPanel = state.syncPanel === 'import' ? null : 'import'; renderSync(); };
 
+// ---- full-page panels (recordings, my phrases, progress), shown in place of the main app ----
+function showPanel(title, html){
+  document.getElementById('main').hidden = true;
+  const el = document.getElementById('panel');
+  el.hidden = false;
+  el.innerHTML = '<div class="panel-head"><button class="link-btn panel-back" id="panelBack">\u2190 Back</button></div>' +
+    '<h1 class="panel-title">' + title + '</h1>' + html;
+  document.getElementById('panelBack').onclick = closePanel;
+  window.scrollTo(0, 0);
+}
+function closePanel(){
+  if(typeof Voice !== 'undefined') Voice.stop();
+  if(recording){ const r = recording; recording = null; if(r.ctrl) r.ctrl.stop(); } // discard an unfinished recording
+  document.getElementById('panel').hidden = true;
+  document.getElementById('main').hidden = false;
+  render();
+}
+
+// ---- your own voice ----
+let recording = null; // {key, ctrl} while a clip is being recorded
+function renderVoicePanel(deckKey){
+  deckKey = deckKey || state.deck;
+  const cards = deckCards(deckKey);
+  const done = cards.filter(c => Voice.has(c.es)).length;
+  const canRec = Voice.canRecord();
+  showPanel('Record phrases in your voice',
+    '<p class="panel-sub">Record a phrase and every speaker button plays your voice instead of the phone\u2019s. ' +
+      'Recordings stay on this phone and are shared by every profile on it.</p>' +
+    (canRec ? '' : '<p class="login-note">Recording isn\u2019t available in this browser. Open the app from the Home Screen in Safari, or allow microphone access.</p>') +
+    '<div class="panel-chips">' + Object.keys(DECKS).map(k => '<button class="level-chip' + (k === deckKey ? ' active' : '') + '" data-deck="' + k + '">' + esc(DECKS[k].name) + '</button>').join('') + '</div>' +
+    '<div class="panel-count">' + done + ' of ' + cards.length + ' recorded</div>' +
+    '<ul class="voice-list">' + cards.map((c, i) =>
+      '<li class="voice-row' + (Voice.has(c.es) ? ' has' : '') + '">' +
+        '<div class="voice-text"><div class="voice-es">' + esc(c.es) + '</div><div class="voice-en">' + esc(stripNote(c.en)) + '</div></div>' +
+        '<div class="voice-btns">' +
+          (Voice.has(c.es) ? '<button class="voice-btn" data-act="play" data-i="' + i + '" aria-label="Play your recording">' + SPEAKER_SVG + '</button>' : '') +
+          (canRec ? '<button class="voice-btn rec" data-act="rec" data-i="' + i + '">' + (Voice.has(c.es) ? 'Redo' : 'Record') + '</button>' : '') +
+          (Voice.has(c.es) ? '<button class="voice-btn del" data-act="del" data-i="' + i + '" aria-label="Delete recording">\u2715</button>' : '') +
+        '</div></li>').join('') + '</ul>');
+  document.querySelectorAll('.panel-chips .level-chip').forEach(b => { b.onclick = () => renderVoicePanel(b.dataset.deck); });
+  document.querySelectorAll('.voice-btn').forEach(b => {
+    const card = cards[+b.dataset.i];
+    b.onclick = async () => {
+      if(b.dataset.act === 'play') return Voice.play(card.es).catch(() => {});
+      if(b.dataset.act === 'del'){
+        if(!b.classList.contains('armed')){ b.classList.add('armed'); b.textContent = 'Delete?'; return; }
+        await Voice.remove(card.es); return renderVoicePanel(deckKey);
+      }
+      // Record / Stop. The clip is handled once, in ctrl.done, whether it
+      // ended by tapping Stop or by the 8-second limit.
+      // `recording` is claimed before the microphone opens (that can take a moment,
+      // e.g. the permission prompt), so a second tap stops rather than starting again.
+      if(recording){
+        if(recording.key === card.es){ if(recording.ctrl) recording.ctrl.stop(); else recording.stopEarly = true; }
+        return;
+      }
+      const mine = recording = { key: card.es, ctrl: null, stopEarly: false };
+      b.textContent = 'Stop'; b.classList.add('recording');
+      try{
+        const ctrl = await Voice.record(8000);
+        mine.ctrl = ctrl;
+        if(recording !== mine || mine.stopEarly) ctrl.stop();
+        ctrl.done.then(async blob => {
+          if(recording !== mine) return;
+          recording = null;
+          if(blob.size){ await Voice.save(card.es, blob); Voice.play(card.es).catch(() => {}); }
+          renderVoicePanel(deckKey);
+        });
+      }catch(e){
+        if(recording === mine) recording = null;
+        b.classList.remove('recording');
+        b.textContent = 'Mic blocked';
+      }
+    };
+  });
+}
+
+// ---- share a phrase (Messages, WhatsApp, …) ----
+function sharePhrase(card){
+  const text = card.es + ' (' + card.pron + ') \u2014 ' + card.en + '\n\nFrom Aprende Conmigo \ud83c\uddf2\ud83c\uddfd';
+  const url = /^https?:$/.test(location.protocol) ? location.origin + location.pathname : undefined;
+  if(navigator.share){
+    navigator.share(url ? { text, url } : { text }).catch(() => {});
+  } else {
+    const done = ok => showToast([{ kind: 'info', text: ok ? 'Phrase copied \u2014 paste it into a message.' : 'Couldn\u2019t copy it here.' }]);
+    if(navigator.clipboard) navigator.clipboard.writeText(text + (url ? '\n' + url : '')).then(() => done(true), () => done(false));
+    else done(false);
+  }
+}
+
 // Offline support when served as a website (not as a single file, artifact or in Scriptable).
 if('serviceWorker' in navigator && /^https?:$/.test(location.protocol) && location.hostname !== 'aprende-conmigo.local'){
   navigator.serviceWorker.register('sw.js').catch(() => {});
@@ -746,6 +847,10 @@ if('serviceWorker' in navigator && /^https?:$/.test(location.protocol) && locati
     loadVoices();
     window.speechSynthesis.onvoiceschanged = loadVoices; // voices load asynchronously in most browsers
   }
+  Voice.init();
+  Profiles.setMenu([
+    { id: 'menuVoice', label: 'Record phrases in your voice', onClick: () => renderVoicePanel() },
+  ]);
   // Shows the welcome / "who's practising?" / PIN screen as needed, then loads that profile.
   await Profiles.start(async () => {
     state = freshState();
