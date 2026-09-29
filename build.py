@@ -26,7 +26,7 @@ def replace_once(text, old, new, what):
     return text.replace(old, new)
 
 css = read("styles.css")
-js = "\n".join([read("content.js"), read("storage.js"), read("srs.js"), read("challenges.js"), read("profiles.js"), read("app.js")])
+js = "\n".join([read("content.js"), read("storage.js"), read("srs.js"), read("challenges.js"), read("profiles.js"), read("quiz.js"), read("app.js")])
 if "</script" in js.lower():
     sys.exit("build.py: a source file contains '</script', which would end the inline script early.")
 
@@ -45,6 +45,7 @@ shell = replace_once(shell,
     '<script src="srs.js"></script>\n'
     '<script src="challenges.js"></script>\n'
     '<script src="profiles.js"></script>\n'
+    '<script src="quiz.js"></script>\n'
     '<script src="app.js"></script>',
     "<script>\n" + js + "\n</script>",
     "<script src> tags")

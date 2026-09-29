@@ -3,6 +3,8 @@
 // saves it, and renders the results.
 const Challenges = (function () {
   const KEEP_DAYS = 30; // daily records older than this are pruned
+  // Question types counted by "De todo un poco" (speaking is optional, so not required).
+  const QUIZ_KINDS = ['recognize', 'reverse', 'listen', 'type', 'gap', 'build', 'scenario'];
 
   function pad(n) { return (n < 10 ? '0' : '') + n; }
   // Local calendar day, e.g. "2026-09-29".
@@ -17,11 +19,12 @@ const Challenges = (function () {
 
   function blankDay() {
     return { answered: 0, correct: 0, listened: 0, flipped: 0, run: 0, bestRun: 0,
-             cleared: 0, perfect: 0, deckAnswers: {}, deckCorrect: {}, done: {}, allDone: false };
+             cleared: 0, perfect: 0, matched: 0, deckAnswers: {}, deckCorrect: {}, byType: {}, done: {}, allDone: false };
   }
   function blankStats() {
     return { days: {}, streak: 0, bestStreak: 0, lastDay: null, bestRun: 0,
-             listenedTotal: 0, dailyDoneDays: 0, early: false, late: false, earned: {} };
+             listenedTotal: 0, dailyDoneDays: 0, early: false, late: false, earned: {},
+             typedTotal: 0, spokenTotal: 0, matchGames: 0, bestMatch: 0, typesDone: {} };
   }
 
   // ---- daily challenges ----
@@ -36,6 +39,11 @@ const Challenges = (function () {
     { id: 'clear', target: 1, text: () => 'Clear everything that’s due in a level', value: d => d.cleared },
     { id: 'perfect', target: 1, text: () => 'Finish a quiz round of 5+ with no mistakes', value: d => d.perfect },
     { id: 'deck5', target: 5, text: name => 'Get 5 right in ' + name, value: (d, deck) => d.deckCorrect[deck] || 0 },
+    { id: 'type5', target: 5, text: () => 'Type 5 phrases from memory (Quiz \u2192 Type it)', value: d => d.byType.type || 0 },
+    { id: 'hear5', target: 5, text: () => 'Get 5 listening questions right', value: d => d.byType.listen || 0 },
+    { id: 'build3', target: 3, text: () => 'Build 3 phrases word by word', value: d => d.byType.build || 0 },
+    { id: 'scene3', target: 3, text: () => 'Answer 3 \u201cWhat would you say?\u201d questions', value: d => d.byType.scenario || 0 },
+    { id: 'match1', target: 1, text: () => 'Finish a Match the pairs game', value: d => d.matched },
   ];
 
   // Small seeded random generator, so everyone sees the same three challenges on a given day.
@@ -87,7 +95,11 @@ const Challenges = (function () {
     { id: 'early', icon: 'sun', es: 'Al que madruga…', en: 'The early bird… — practise before 7am', progress: c => [c.stats.early ? 1 : 0, 1] },
     { id: 'late', icon: 'moon', es: 'Noche de estudio', en: 'Study night — practise after 10pm', progress: c => [c.stats.late ? 1 : 0, 1] },
     { id: 'daily1', icon: 'diamond', es: 'Reto cumplido', en: 'Challenge met — finish all 3 daily challenges', progress: c => [c.stats.dailyDoneDays, 1] },
-    { id: 'daily10', icon: 'diamond', es: 'Diez días de retos', en: 'Ten days of challenges — finish all 3 on 10 days', progress: c => [c.stats.dailyDoneDays, 10] },
+    { id: 'daily10', icon: 'diamond', es: 'Diez días de retos', en: 'Ten days of challenges \u2014 finish all 3 on 10 days', progress: c => [c.stats.dailyDoneDays, 10] },
+    { id: 'type50', icon: 'leaf', es: 'De memoria', en: 'By heart \u2014 type 50 phrases correctly', progress: c => [c.stats.typedTotal, 50] },
+    { id: 'speak10', icon: 'flower', es: '\u00a1Qué bien hablas!', en: 'You speak so well \u2014 say 10 phrases correctly out loud', progress: c => [c.stats.spokenTotal, 10] },
+    { id: 'match10', icon: 'spiral', es: 'Memoria de elefante', en: 'A memory like an elephant \u2014 finish 10 match games', progress: c => [c.stats.matchGames, 10] },
+    { id: 'alltypes', icon: 'sun', es: 'De todo un poco', en: 'A bit of everything \u2014 get every quiz question type right at least once', progress: c => [Object.keys(c.stats.typesDone).length, QUIZ_KINDS.length] },
   ];
 
   // ---- recording ----
@@ -120,6 +132,12 @@ const Challenges = (function () {
       d.correct++;
       d.deckCorrect[ev.deck] = (d.deckCorrect[ev.deck] || 0) + 1;
     }
+    if (ev.qtype && ev.correct) {
+      d.byType[ev.qtype] = (d.byType[ev.qtype] || 0) + 1;
+      if (QUIZ_KINDS.includes(ev.qtype)) stats.typesDone[ev.qtype] = true;
+      if (ev.qtype === 'type') stats.typedTotal++;
+      if (ev.qtype === 'speak') stats.spokenTotal++;
+    }
     if (ev.mode === 'quiz') {
       d.run = ev.correct ? d.run + 1 : 0;
       d.bestRun = Math.max(d.bestRun, d.run);
@@ -130,6 +148,11 @@ const Challenges = (function () {
   function recordFlip(stats, now) { today(stats, now).flipped++; }
   function recordCleared(stats, now) { today(stats, now).cleared++; }
   function recordPerfect(stats, now) { today(stats, now).perfect++; }
+  function recordMatch(stats, now, seconds) {
+    today(stats, now).matched++;
+    stats.matchGames++;
+    stats.bestMatch = stats.bestMatch ? Math.min(stats.bestMatch, seconds) : seconds;
+  }
 
   // The streak as it stands today: it's broken once a whole day is missed.
   function currentStreak(stats, now) {
@@ -179,7 +202,9 @@ const Challenges = (function () {
   function clean(raw) {
     const s = blankStats();
     if (!raw || typeof raw !== 'object') return s;
-    ['streak', 'bestStreak', 'bestRun', 'listenedTotal', 'dailyDoneDays'].forEach(k => { s[k] = Math.floor(nonNeg(raw[k])); });
+    ['streak', 'bestStreak', 'bestRun', 'listenedTotal', 'dailyDoneDays', 'typedTotal', 'spokenTotal', 'matchGames', 'bestMatch']
+      .forEach(k => { s[k] = Math.floor(nonNeg(raw[k])); });
+    if (raw.typesDone && typeof raw.typesDone === 'object') QUIZ_KINDS.forEach(t => { if (raw.typesDone[t] === true) s.typesDone[t] = true; });
     s.early = raw.early === true;
     s.late = raw.late === true;
     if (typeof raw.lastDay === 'string' && /^\d{4}-\d\d-\d\d$/.test(raw.lastDay)) s.lastDay = raw.lastDay;
@@ -191,8 +216,8 @@ const Challenges = (function () {
         const src = raw.days[k];
         if (!/^\d{4}-\d\d-\d\d$/.test(k) || !src || typeof src !== 'object') return;
         const d = blankDay();
-        ['answered', 'correct', 'listened', 'flipped', 'run', 'bestRun', 'cleared', 'perfect'].forEach(f => { d[f] = Math.floor(nonNeg(src[f])); });
-        ['deckAnswers', 'deckCorrect'].forEach(f => {
+        ['answered', 'correct', 'listened', 'flipped', 'run', 'bestRun', 'cleared', 'perfect', 'matched'].forEach(f => { d[f] = Math.floor(nonNeg(src[f])); });
+        ['deckAnswers', 'deckCorrect', 'byType'].forEach(f => {
           if (src[f] && typeof src[f] === 'object') Object.keys(src[f]).forEach(deck => { d[f][deck] = Math.floor(nonNeg(src[f][deck])); });
         });
         if (src.done && typeof src.done === 'object') DAILY.forEach(c => { if (src.done[c.id] === true) d.done[c.id] = true; });
@@ -207,7 +232,9 @@ const Challenges = (function () {
   // counts and the running streak stay as they are on this device.
   function merge(local, incoming) {
     const m = clean(local), inc = clean(incoming);
-    ['bestStreak', 'bestRun', 'listenedTotal', 'dailyDoneDays'].forEach(k => { m[k] = Math.max(m[k], inc[k]); });
+    ['bestStreak', 'bestRun', 'listenedTotal', 'dailyDoneDays', 'typedTotal', 'spokenTotal', 'matchGames'].forEach(k => { m[k] = Math.max(m[k], inc[k]); });
+    if (inc.bestMatch) m.bestMatch = m.bestMatch ? Math.min(m.bestMatch, inc.bestMatch) : inc.bestMatch;
+    Object.keys(inc.typesDone).forEach(t => { m.typesDone[t] = true; });
     m.early = m.early || inc.early;
     m.late = m.late || inc.late;
     Object.keys(inc.earned).forEach(id => { m.earned[id] = m.earned[id] ? Math.min(m.earned[id], inc.earned[id]) : inc.earned[id]; });
@@ -215,6 +242,6 @@ const Challenges = (function () {
   }
 
   return { dayKey, addDays, blankStats, clean, merge, recordAnswer, recordListen, recordFlip,
-           recordCleared, recordPerfect, currentStreak, dailyStatus, evaluate, achievementStatus,
+           recordCleared, recordPerfect, recordMatch, currentStreak, dailyStatus, evaluate, achievementStatus,
            ACHIEVEMENTS, DAILY };
 })();

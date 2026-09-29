@@ -1,7 +1,7 @@
 // app.js — state, spaced-repetition bookkeeping, and rendering.
 // Depends on content.js (DECKS, ICONS, iconSvg), storage.js (Storage,
 // encodeProgressBlob, decodeProgressBlob), srs.js (SRS), challenges.js
-// (Challenges) and profiles.js (Profiles) being loaded first.
+// (Challenges), profiles.js (Profiles) and quiz.js (question types) being loaded first.
 // Nothing runs until someone picks a profile; each profile's state is loaded fresh.
 
 const LEVEL_UNLOCK_BOX = 2; // a level "unlocks the next one" once every card has been gotten right twice, on schedule
@@ -13,6 +13,9 @@ const freshState = () => ({
   levelByDeck: {},   // deckKey -> level index | ALL (unset = pick a sensible default)
   unlocked: {},      // deckKey -> unlock progress, see unlockProgress(). Persisted; never goes down.
   mode: 'flash',
+  quizType: 'mixed', // one of QUIZ_TYPE_IDS (quiz.js); saved per profile
+  speakInMix: false, // include "say it out loud" questions in Mixed
+  q: null,           // {key, type}: the current quiz question's type, fixed while it's on screen
   practice: false,   // true = the session includes cards that aren't due yet
   idx: 0,
   flipped: false,
@@ -104,6 +107,11 @@ async function loadProgress(){
     if(raw4) state.stats = Challenges.clean(JSON.parse(raw4));
   }catch(e){}
   try{
+    const prefs = JSON.parse((await Storage.get('prefs')) || 'null');
+    if(prefs && QUIZ_TYPE_IDS.includes(prefs.quizType)) state.quizType = prefs.quizType;
+    if(prefs) state.speakInMix = prefs.speakInMix === true;
+  }catch(e){}
+  try{
     const raw3 = await Storage.get('unlocked');
     if(raw3) state.unlocked = cleanUnlocked(JSON.parse(raw3));
   }catch(e){}
@@ -113,6 +121,7 @@ async function loadProgress(){
 }
 async function saveProgress(){ try{ await Storage.set('progress', JSON.stringify(state.progress)); }catch(e){} }
 async function saveCorrectTotal(){ try{ await Storage.set('streak', String(state.correctTotal)); }catch(e){} }
+async function savePrefs(){ try{ await Storage.set('prefs', JSON.stringify({ quizType: state.quizType, speakInMix: state.speakInMix })); }catch(e){} }
 async function saveUnlocked(){ try{ await Storage.set('unlocked', JSON.stringify(state.unlocked)); }catch(e){} }
 async function saveStats(){ try{ await Storage.set('challenges', JSON.stringify(state.stats)); }catch(e){} }
 
@@ -206,7 +215,8 @@ function nextDueTime(cards){
 
 // Returns true when a correct answer came before the card was due, so its
 // schedule didn't change (practice rounds).
-function recordAnswer(id, correct){
+// qtype: which quiz question type was asked (quiz.js), or undefined for flashcards.
+function recordAnswer(id, correct, qtype){
   const before = cardRecord(id);
   const after = SRS.answer(before, correct, Date.now());
   const early = after === before;
@@ -222,7 +232,7 @@ function recordAnswer(id, correct){
 
   // challenges: every answer counts toward the day streak and today's challenges
   const now = Date.now();
-  Challenges.recordAnswer(state.stats, { deck: state.deck, correct, mode: state.mode, now });
+  Challenges.recordAnswer(state.stats, { deck: state.deck, correct, mode: state.mode, qtype, now });
   if(!early && !state.practice && !activeCards().some(c => SRS.isDue(cardRecord(c._id), now))){
     Challenges.recordCleared(state.stats, now);
   }
@@ -356,6 +366,7 @@ function resetDeckState(){
   state.quizAnswered = false;
   state.correctCount = 0;
   state.notice = '';
+  state.q = null;
 }
 
 function startSession(practice){ state.practice = !!practice; resetDeckState(); render(); }
@@ -530,6 +541,7 @@ function renderEnd(){
 
 function renderStage(){
   if(state.levelUp && state.levelUp.deck === state.deck) renderLevelUp();
+  else if(state.mode === 'quiz' && state.quizType === 'match') renderMatch(); // not tied to due cards
   else if(state.idx >= state.order.length) renderEnd();
   else if(state.mode === 'flash') renderFlash();
   else renderQuiz();
@@ -609,68 +621,14 @@ function meaningsOverlap(a, b){
   return pa.some(x => pb.some(y => x === y || (' '+x+' ').includes(' '+y+' ') || (' '+y+' ').includes(' '+x+' ')));
 }
 
+// One question per card; its type comes from quiz.js (Mixed picks by card strength).
 function renderQuiz(){
-  const stage = document.getElementById('stage');
   const cards = activeCards();
   const cardIdx = state.order[state.idx];
   const card = cards[cardIdx];
-  const answer = stripNote(card.en);
-  const seen = new Set([answer]);
-  const distractors = [];
-  shuffled(cards.filter((_,i) => i !== cardIdx)).forEach(c => {
-    const text = stripNote(c.en);
-    if(distractors.length >= 3 || seen.has(text) || meaningsOverlap(c.en, card.en)) return;
-    if(distractors.some(d => meaningsOverlap(d, text))) return;
-    seen.add(text);
-    distractors.push(text);
-  });
-  const options = shuffled([answer].concat(distractors));
-
-  stage.innerHTML =
-    '<div class="quiz-prompt">What does this mean? <span style="opacity:0.6;">(' + dueLabel(card._id) + ')</span></div>' +
-    iconSvg(card.icon, 'quiz-icon-svg') +
-    '<div class="quiz-word">' + esc(card.es) +
-      ' <button class="sound-btn quiz-sound-btn" id="quizSoundBtn" title="Hear it" aria-label="Hear it">' + SPEAKER_SVG + '</button>' +
-    '</div>' +
-    '<div class="card-sub" style="opacity:0.55;font-style:italic;margin-top:2px;">' + esc(card.pron) + '</div>' +
-    '<div class="options" id="optsWrap"></div>';
-
-  document.getElementById('quizSoundBtn').onclick = () => hearCard(card.es);
-  const wrap = document.getElementById('optsWrap');
-  options.forEach(opt=>{
-    const b = document.createElement('button');
-    b.className = 'opt-btn';
-    b.textContent = opt;
-    b.onclick = () => {
-      if(state.quizAnswered) return;
-      state.quizAnswered = true;
-      const isCorrect = opt === answer;
-      Array.prototype.forEach.call(wrap.children, child => {
-        child.disabled = true;
-        if(child.textContent === answer) child.classList.add('correct');
-        else if(child === b) child.classList.add('wrong');
-      });
-      if(isCorrect) state.correctCount++;
-      const early = recordAnswer(card._id, isCorrect);
-      const notes = [];
-      if(answer !== card.en) notes.push(card.en);
-      if(early) notes.push('Not due yet, so its schedule didn’t change.');
-      notes.forEach(text => {
-        const note = document.createElement('div');
-        note.className = 'quiz-note';
-        note.textContent = text;
-        stage.appendChild(note);
-      });
-      const next = document.createElement('button');
-      next.className = 'ctrl-btn primary quiz-next';
-      next.textContent = state.idx + 1 >= state.order.length ? 'See results' : 'Next';
-      next.onclick = nextCard;
-      stage.appendChild(next);
-      next.focus();
-      renderDecks(); renderLevelChips(); renderStats(); renderGreeting();
-    };
-    wrap.appendChild(b);
-  });
+  const key = state.idx + ':' + cardIdx;
+  if(!state.q || state.q.key !== key) state.q = { key, type: pickQuizType(card, cards) };
+  renderQuestion(state.q.type, card, cardIdx, cards);
 }
 
 // ---- sync (export / import) ----
@@ -763,6 +721,7 @@ function render(){
   renderDecks();
   renderLevelChips();
   renderModes();
+  renderQuizOptions();
   renderBanner();
   renderStats();
   renderSync();

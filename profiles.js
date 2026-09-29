@@ -5,7 +5,7 @@
 // Depends on storage.js (Storage) and content.js (iconSvg).
 const Profiles = (function () {
   const KEY = 'profiles';
-  const PROFILE_KEYS = ['progress', 'streak', 'unlocked', 'challenges'];
+  const PROFILE_KEYS = ['progress', 'streak', 'unlocked', 'challenges', 'prefs'];
   const COLORS = ['#1B6B78', '#6B2545', '#C7832A', '#4F7A3A', '#2B2320'];
   const MAX_NAME = 20;
 

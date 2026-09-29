@@ -71,6 +71,8 @@ const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++
   ok(!(await page.$eval('.level-chip:nth-child(2)', b => b.disabled)), 'forgetting a card does not re-lock level 2');
 
   // 6. quiz mode: level 2 via quiz, overlap check, level up in quiz
+  // These quiz checks use the original Spanish -> English questions; the other types are tested further down.
+  await page.evaluate(() => { state.quizType = 'recognize'; });
   await page.click('.level-chip:nth-child(2)'); await page.click('#modeQuiz');
   let overlapBad = 0, notesShown = 0;
   const quizPass = async () => { while (await page.$('#optsWrap')) {
@@ -405,6 +407,140 @@ const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++
   ok((await pp.$$('.profile-pick[data-id]')).length === 1, 'second tap deletes the profile');
   ok(await pp.evaluate(() => !Object.keys(localStorage).some(k => k.startsWith('p:') && localStorage.getItem(k))), "deleted profile's progress is cleared");
   await pctx.close();
+
+  // 24. quiz question types
+  const qctx = await newCtx();
+  await qctx.addInitScript(() => {
+    // Stand-in speech recogniser: "hears" whatever the test puts in window.__say.
+    window.SpeechRecognition = class { start(){ setTimeout(() => { this.onresult({ results: [[{ transcript: window.__say }]] }); this.onend && this.onend(); }, 20); } };
+  });
+  const pq = await qctx.newPage();
+  pq.on('pageerror', e => { console.log('PAGEERROR-Q', e.message); fails++; });
+  await pq.clock.install({ time: new Date('2026-09-29T15:00:00') });
+  await pq.goto(URL);
+
+  // answer checking and gendered variants
+  const checks = await pq.evaluate(() => ({
+    v1: spanishVariants('Estoy orgulloso / orgullosa de ti'), v2: spanishVariants('Mi esposo / Mi esposa'),
+    v3: spanishVariants('Bienvenido / Bienvenida a casa'), v4: spanishVariants('Ando bien ocupado / ocupada'),
+    exact: checkAnswer('¿Qué tal?', { es: '¿Qué tal?' }), accents: checkAnswer('que tal', { es: '¿Qué tal?' }),
+    typo: checkAnswer('te extrano mucho', { es: 'Los extraño mucho' }), close: checkAnswer('pienso en ti todo el dia', { es: 'Pienso en ti todo el día' }),
+    wrong: checkAnswer('hola', { es: '¿Qué tal?' }), fem: checkAnswer('estoy orgullosa de ti', { es: 'Estoy orgulloso / orgullosa de ti' }),
+    empty: checkAnswer('   ', { es: 'Te extraño' }),
+  }));
+  ok(checks.v1.join('|') === 'Estoy orgulloso de ti|Estoy orgullosa de ti' && checks.v2.join('|') === 'Mi esposo|Mi esposa' &&
+     checks.v3.join('|') === 'Bienvenido a casa|Bienvenida a casa' && checks.v4.join('|') === 'Ando bien ocupado|Ando bien ocupada', 'both gender forms spelled out');
+  ok(checks.exact.ok && !checks.exact.note && checks.accents.ok && checks.accents.note.includes('¿Qué tal?'), 'typing forgives accents/punctuation but shows the proper spelling');
+  ok(!checks.typo.ok && checks.close.ok && !checks.wrong.ok && checks.fem.ok && !checks.empty.ok, 'typing: wrong words rejected, either gender form accepted');
+
+  // helper: show one card of the love deck's first level as a given type
+  const ask = (type, es, box) => pq.evaluate(([type, es, box]) => {
+    state.deck = 'love'; state.levelByDeck.love = 0; state.quizType = type; state.mode = 'quiz'; state.practice = false;
+    const id = 'love/' + es;
+    state.progress[id] = { box: box || 0, due: Date.now() - 1 };
+    resetDeckState();
+    const cards = activeCards();
+    state.order = [cards.findIndex(c => c.es === es), (cards.findIndex(c => c.es === es) + 1) % cards.length];
+    render();
+    return id;
+  }, [type, es, box]);
+  const boxOf = id => pq.evaluate(id => state.progress[id].box, id);
+  const clickText = async text => pq.click(`#optsWrap .opt-btn:text-is("${text}")`);
+
+  let id = await ask('reverse', 'Te extraño');
+  ok((await pq.textContent('.quiz-en')).includes('I miss you'), 'reverse: shows the English');
+  await clickText('Te extraño');
+  ok(await boxOf(id) === 1 && (await pq.textContent('.quiz-reveal')).includes('Correct'), 'reverse: right Spanish option counts');
+
+  id = await ask('listen', 'Te extraño');
+  ok(!(await pq.$('.quiz-word')) && !!(await pq.$('#listenBtn')), 'listening: phrase is hidden, play button shown');
+  await clickText('I miss you');
+  ok(await boxOf(id) === 1 && (await pq.textContent('.reveal-es')).includes('Te extraño'), 'listening: right meaning counts and the phrase is revealed');
+
+  id = await ask('type', 'Te extraño');
+  await pq.fill('#typeInput', 'te extrano'); await pq.press('#typeInput', 'Enter');
+  ok(await boxOf(id) === 1 && (await pq.textContent('#stage')).includes('With its accents'), 'type: typed answer counts, accent reminder shown');
+  id = await ask('type', 'Te extraño', 3);
+  await pq.click('#dontKnowBtn');
+  ok(await boxOf(id) === 1 && (await pq.textContent('.quiz-reveal')).includes('The answer'), "type: \"I don't know\" counts as wrong and shows the answer");
+
+  id = await ask('gap', 'Me haces muy feliz');
+  const gapAnswer = await pq.evaluate(() => { const blank = document.querySelector('.gap-line').textContent; return ['Me','haces','muy','feliz'].find(w => !blank.includes(w)); });
+  await clickText(gapAnswer);
+  ok(await boxOf(id) === 1, 'fill the gap: picking the missing word (' + gapAnswer + ') counts');
+
+  id = await ask('build', 'Me haces muy feliz');
+  for (const w of ['Me', 'haces', 'muy', 'feliz']) await pq.click(`#buildTiles button.tile:text-is("${w}")`);
+  await pq.click('#checkBtn');
+  ok(await boxOf(id) === 1 && await pq.$eval('#buildAnswer', el => el.classList.contains('correct')), 'build: words in the right order count');
+  id = await ask('build', 'Me haces muy feliz');
+  for (const w of ['feliz', 'muy', 'haces', 'Me']) await pq.click(`#buildTiles button.tile:text-is("${w}")`);
+  await pq.click('#checkBtn');
+  ok(await boxOf(id) === 0, 'build: wrong order counts as wrong');
+
+  id = await ask('scenario', 'Te extraño');
+  ok((await pq.textContent('.quiz-scenario')).includes('away for a week'), 'scenario: situation shown');
+  await clickText('Te extraño');
+  ok(await boxOf(id) === 1, 'scenario: right phrase counts');
+
+  id = await ask('speak', 'Te extraño');
+  await pq.evaluate(() => { window.__say = 'te extraño'; });
+  await pq.click('#micBtn'); await pq.waitForTimeout(100);
+  ok(await boxOf(id) === 1 && (await pq.textContent('#heardNote')).includes('te extraño'), 'speak: saying it right counts');
+  id = await ask('speak', 'Te extraño');
+  await pq.evaluate(() => { window.__say = 'buenas noches'; });
+  await pq.click('#micBtn'); await pq.waitForTimeout(100);
+  ok(await boxOf(id) === 0 && !!(await pq.$('#giveUpBtn')), 'speak: wrong attempt allows a retry, nothing recorded yet');
+  await pq.click('#skipSpeakBtn');
+  ok(!!(await pq.$('.quiz-word')) && await boxOf(id) === 0, '"Can\'t talk right now" asks the same card another way');
+
+  // gap and build aren't offered for one-word or gendered cards
+  const suits = await pq.evaluate(() => {
+    const everyday = deckCards('everyday'), love = deckCards('love');
+    const c = es => everyday.concat(love).find(x => x.es === es);
+    return { gapOne: canUseType('gap', c('Ahorita'), everyday), buildGender: canUseType('build', c('Estoy orgulloso / orgullosa de ti'), love),
+             scenNone: canUseType('scenario', c('Mi cielo'), love), scenYes: canUseType('scenario', c('Te extraño'), love) };
+  });
+  ok(!suits.gapOne && !suits.buildGender && !suits.scenNone && suits.scenYes, 'types are only used on cards that suit them');
+
+  // Mixed gets harder with the card's box
+  const mixed = await pq.evaluate(() => {
+    state.quizType = 'mixed'; state.speakInMix = false;
+    const pool = levelCards('love', 0), card = pool.find(c => c.es === 'Te extraño');
+    const kinds = box => { state.progress[card._id] = { box, due: 0 }; const s = new Set(); for (let i = 0; i < 200; i++) s.add(pickQuizType(card, pool)); return [...s].sort(); };
+    return { b0: kinds(0), b1: kinds(1), b2: kinds(2), b5: kinds(5) };
+  });
+  ok(mixed.b0.join() === 'recognize', 'mixed: new cards are Spanish → English');
+  ok(mixed.b1.join() === 'listen,recognize,reverse', 'mixed: box 1 adds reverse and listening');
+  ok(!mixed.b2.includes('recognize') && mixed.b2.includes('scenario') && !mixed.b2.includes('type'), 'mixed: known cards get harder types: ' + mixed.b2);
+  ok(mixed.b5.includes('type') && !mixed.b5.includes('speak') && !mixed.b5.includes('recognize'), 'mixed: strong cards are typed etc., no speaking unless turned on: ' + mixed.b5);
+
+  // question type choice is saved per profile
+  await pq.click('#modeQuiz');
+  await pq.selectOption('#quizTypeSelect', 'type');
+  ok(await pq.evaluate(() => JSON.parse(localStorage.getItem('prefs')).quizType) === 'type', 'question type choice is saved');
+
+  // Match the pairs
+  const progressBeforeMatch = await pq.evaluate(() => JSON.stringify(state.progress));
+  await pq.selectOption('#quizTypeSelect', 'match');
+  const tiles = await pq.evaluate(() => [...document.querySelectorAll('.match-tile.es')].length);
+  ok(tiles === 5, 'match: five pairs dealt');
+  // one mistake, then solve it
+  await pq.evaluate(() => {
+    const es = [...document.querySelectorAll('.match-tile[data-side="es"]')], en = [...document.querySelectorAll('.match-tile[data-side="en"]')];
+    const enText = t => stripNote(activeCards().find(c => c.es === t).en);
+    es[0].click(); en.find(b => b.textContent !== enText(es[0].textContent)).click();
+    es.forEach(b => { const want = enText(b.textContent); b.click(); en.find(x => x.textContent === want).click(); });
+  });
+  ok((await pq.textContent('.match-done')).includes('1 mistake') && await pq.evaluate(() => state.stats.matchGames) === 1, 'match: finishing records the game and mistakes');
+  ok(await pq.evaluate(() => JSON.stringify(state.progress)) === progressBeforeMatch, "match: doesn't change the review schedule");
+
+  // challenges/achievements see the new types
+  const typeStats = await pq.evaluate(() => ({ d: state.stats.days[Challenges.dayKey(Date.now())], t: state.stats }));
+  ok(typeStats.d.byType.type === 1 && typeStats.d.byType.build === 1 && typeStats.d.matched === 1 && typeStats.t.typedTotal === 1 && typeStats.t.spokenTotal === 1,
+     'new types are counted for challenges');
+  ok(['recognize', 'reverse', 'listen', 'type', 'gap', 'build', 'scenario'].every(k => typeStats.t.typesDone[k] || k === 'recognize'), 'types done are tracked');
+  await qctx.close();
 
   await browser.close();
   console.log(fails ? fails + ' FAILED' : 'ALL PASSED');
