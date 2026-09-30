@@ -43,7 +43,7 @@ chooses for you and gets harder as a card gets stronger:
 
 ## Difficulty (Nivel)
 
-Pick **Fácil**, **Normal** or **Difícil** above the cards; each profile keeps its own choice.
+Pick **Fácil**, **Normal** or **Difícil** above the cards; the app remembers your choice.
 It changes how questions are asked, never how often cards come back.
 
 | | Fácil | Normal | Difícil |
@@ -82,7 +82,7 @@ quizzes as everything else, and travel with Export/Import.
 
 - **Record phrases in your voice** (in the menu under your name): record a
   phrase and every speaker button plays your recording instead of the
-  phone's voice. Recordings stay on the phone, and each profile has its own.
+  phone's voice. Recordings stay on the phone.
 - **Share this phrase** on the back of a flashcard sends it through the
   phone's share sheet (Messages, WhatsApp, …).
 
@@ -95,9 +95,11 @@ online). Dark mode follows the phone's own setting.
 ## Profiles
 
 The first time it opens, the app asks for a name (and an optional 4-digit PIN).
-Everyone who uses the same phone can have their own profile — each with their
-own progress, streak and challenges. Tap your name at the top to switch
-profiles or change your name or PIN.
+It's one person per phone: anyone else installs it on their own phone. Tap
+your name at the top to change your name or PIN, or to log out (with a PIN
+set, the app then asks for it next time). A phone set up with several profiles
+before this still lists them, so each person can export their progress and
+delete their profile; no new profiles can be added.
 
 Profiles only exist on that device; nothing is sent anywhere. The PIN just
 stops someone opening the wrong profile by accident — it isn't a password, and
@@ -126,7 +128,7 @@ tab shows what went wrong.
 | `content.js` | Decks, levels and cards |
 | `srs.js` | Spaced-repetition schedule: 10 min → 1 day → 3 days → 1 week → 2 weeks → 1 month → 3 months |
 | `challenges.js` | Daily challenges (3 new each day), the day streak and achievements |
-| `profiles.js` | Profiles on the device: welcome screen, who's practising, PIN |
+| `profiles.js` | The phone's owner: welcome screen, PIN, name |
 | `quiz.js` | Quiz question types, Mixed mode, answer checking, Match the pairs |
 | `app.js` | Screens, greeting, levels, export/import |
 | `storage.js` | Saves progress (browser storage, Claude artifact storage, or Scriptable) |

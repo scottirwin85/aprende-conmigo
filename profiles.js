@@ -1,6 +1,8 @@
-// profiles.js — who's practising. Profiles live on this device only: a name,
-// an optional 4-digit PIN, and their own progress (storage.js keeps each
-// profile's keys separate). The PIN only stops someone opening the wrong
+// profiles.js — who's practising. One person per phone: a name, an optional
+// 4-digit PIN, and their progress, kept on this device only. Phones set up
+// when several people could share one may still hold more than one profile
+// (storage.js keeps each profile's keys separate); those can still be opened
+// and deleted, but no new ones can be added. The PIN only stops someone opening the wrong
 // profile by accident — it isn't a password and doesn't encrypt anything.
 // Depends on storage.js (Storage) and content.js (iconSvg).
 const Profiles = (function () {
@@ -83,7 +85,7 @@ const Profiles = (function () {
     showScreen(
       '<div class="eyebrow">Aprende Conmigo</div>' +
       '<h1 class="login-title">¡Hola! ¿Cómo te llamas?</h1>' +
-      '<p class="login-sub">What’s your name? It’s only kept on this device, to greet you and keep your progress separate.</p>' +
+      '<p class="login-sub">What’s your name? It’s only kept on this phone, to greet you.</p>' +
       formFields(null) +
       (legacy ? '<p class="login-note">The progress already on this device will be kept in your profile.</p>' : '') +
       '<button class="ctrl-btn primary login-btn" id="saveProfileBtn">Empezar · Start</button>' +
@@ -91,20 +93,22 @@ const Profiles = (function () {
     wireForm(null);
   }
 
+  // Only for phones that still hold several profiles from before one-person-per-phone.
   function showPicker() {
+    if (data.list.length <= 1) return data.list.length ? choose(data.list[0]) : showWelcome();
     entered = null;
     showScreen(
       '<div class="eyebrow">Aprende Conmigo</div>' +
       '<h1 class="login-title">¿Quién va a practicar?</h1>' +
       '<p class="login-sub">Who’s going to practise?</p>' +
+      '<p class="login-note">Aprende Conmigo is now one person per phone. Everyone else should install it on their own phone. ' +
+        'To take your progress with you: open your profile, tap <strong>Export progress</strong>, then <strong>Import progress</strong> on your phone. ' +
+        'Then delete your profile here (tap your name → Edit name or PIN → Delete this profile).</p>' +
       '<div class="profile-grid">' +
         data.list.map(p => '<button class="profile-pick" data-id="' + p.id + '">' + avatar(p, 'avatar-lg') +
           '<span class="profile-name">' + esc(p.name) + '</span>' + (p.pin ? '<span class="profile-lock">🔒 PIN</span>' : '') + '</button>').join('') +
-        '<button class="profile-pick profile-add" id="addProfileBtn"><span class="avatar avatar-lg avatar-add" aria-hidden="true">+</span>' +
-          '<span class="profile-name">Add a profile</span></button>' +
       '</div>');
     document.querySelectorAll('.profile-pick[data-id]').forEach(b => { b.onclick = () => choose(byId(b.dataset.id)); });
-    $('addProfileBtn').onclick = () => showForm(null);
   }
 
   function choose(p) { if (p.pin) showPin(p); else enter(p); }
@@ -118,7 +122,7 @@ const Profiles = (function () {
       '<input class="pin-input" id="pinInput" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" aria-label="PIN">' +
       '<div class="login-error" id="pinError" role="alert"></div>' +
       '<button class="ctrl-btn primary login-btn" id="pinBtn">Entrar · Go in</button>' +
-      '<div class="login-links"><button class="link-btn" id="switchBtn">Not ' + esc(p.name) + '? Switch profile</button>' +
+      '<div class="login-links">' + (data.list.length > 1 ? '<button class="link-btn" id="switchBtn">Not ' + esc(p.name) + '? Switch profile</button>' : '') +
       '<button class="link-btn" id="forgotBtn">Forgot PIN?</button></div>' +
       '<div class="login-note" id="forgotNote" hidden>A forgotten PIN can’t be recovered — it’s only stored on this device. ' +
         'You can delete this profile and start a new one; its progress will be lost. ' +
@@ -132,7 +136,7 @@ const Profiles = (function () {
     $('pinBtn').onclick = tryPin;
     input.oninput = () => { $('pinError').textContent = ''; if (input.value.length === 4) tryPin(); };
     input.onkeydown = e => { if (e.key === 'Enter') tryPin(); };
-    $('switchBtn').onclick = showPicker;
+    if ($('switchBtn')) $('switchBtn').onclick = showPicker;
     $('forgotBtn').onclick = () => { $('forgotNote').hidden = false; };
     confirmTwice($('forgotDeleteBtn'), 'Tap again to delete ' + p.name + '’s progress', () => remove(p));
     input.focus();
@@ -156,7 +160,7 @@ const Profiles = (function () {
       '<button class="ctrl-btn login-btn" id="cancelBtn">Cancel</button>' +
       (p ? '<button class="link-btn danger delete-profile" id="deleteBtn">Delete this profile</button>' : ''));
     wireForm(p);
-    $('cancelBtn').onclick = () => { if (p && entered) enter(entered); else if (data.list.length) showPicker(); else showWelcome(); };
+    $('cancelBtn').onclick = () => { if (p && entered) enter(entered); else showPicker(); };
     if (p) confirmTwice($('deleteBtn'), 'Tap again to delete ' + p.name + ' and all their progress', () => remove(p));
   }
 
@@ -174,6 +178,7 @@ const Profiles = (function () {
         save();
         enter(p);
       } else {
+        if (data.list.length) return fail('This phone already belongs to ' + data.list[0].name + '.');
         const created = { id: newId(), name, color: COLORS[data.list.length % COLORS.length], pin: pin ? makePin(pin) : null };
         data.list.push(created);
         save();
@@ -204,7 +209,7 @@ const Profiles = (function () {
     data.list = data.list.filter(o => o !== p);
     if (data.active === p.id) data.active = null;
     save();
-    if (data.list.length) showPicker(); else showWelcome();
+    showPicker();
   }
 
   // ---- in the app ----
@@ -228,10 +233,10 @@ const Profiles = (function () {
       '<button class="profile-chip" id="chipBtn" aria-haspopup="true" aria-expanded="false">' + avatar(entered) +
         '<span>' + esc(entered.name) + '</span></button>' +
       '<div class="profile-menu" id="profileMenu" hidden>' +
-        '<button id="menuSwitch">Switch profile</button>' +
+        (data.list.length > 1 ? '<button id="menuSwitch">Switch profile</button>' : '') +
         extraMenu.map(m => '<button id="' + m.id + '">' + esc(m.label) + '</button>').join('') +
         '<button id="menuEdit">Edit name or PIN</button>' +
-        '<button id="menuLogout" class="menu-logout">Log out</button>' +
+        (entered.pin || data.list.length > 1 ? '<button id="menuLogout" class="menu-logout">Log out</button>' : '') +
       '</div>';
     const menu = $('profileMenu'), btn = $('chipBtn');
     const close = () => { menu.hidden = true; btn.setAttribute('aria-expanded', 'false'); };
@@ -247,13 +252,14 @@ const Profiles = (function () {
         if (m && !$('profileChip').contains(e.target)) { m.hidden = true; if ($('chipBtn')) $('chipBtn').setAttribute('aria-expanded', 'false'); }
       });
     }
-    $('menuSwitch').onclick = () => { close(); showPicker(); };
+    if ($('menuSwitch')) $('menuSwitch').onclick = () => { close(); showPicker(); };
     $('menuEdit').onclick = () => { close(); showForm(entered); };
-    $('menuLogout').onclick = () => { close(); logout(); };
+    if ($('menuLogout')) $('menuLogout').onclick = () => { close(); logout(); };
     extraMenu.forEach(m => { $(m.id).onclick = () => { close(); m.onClick(); }; });
   }
 
-  // Unlike "Switch profile", nobody is remembered: the next launch asks who's practising.
+  // Nobody is remembered: the next launch asks for the PIN (or, on a phone
+  // that still holds several profiles, who's practising).
   function logout() {
     if (window.speechSynthesis) try { window.speechSynthesis.cancel(); } catch (e) {}
     data.active = null;
@@ -264,7 +270,7 @@ const Profiles = (function () {
   async function start(callback) {
     onEnter = callback;
     await load();
-    const p = byId(data.active);
+    const p = byId(data.active) || (data.list.length === 1 ? data.list[0] : null);
     if (!data.list.length) await showWelcome();
     else if (p && !p.pin) await enter(p);   // same person as last time: straight in
     else if (p) showPin(p);

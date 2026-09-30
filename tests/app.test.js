@@ -392,48 +392,65 @@ const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++
   await pp.reload(); await appReady(pp);
   ok(await pp.isVisible('#main'), 'no PIN: straight back in on the next launch');
 
-  // add a second profile with a PIN
-  await pp.click('#chipBtn'); await pp.click('#menuSwitch');
-  ok((await pp.textContent('#login')).includes('¿Quién va a practicar?'), 'switch shows the profile picker');
-  await pp.click('#addProfileBtn');
-  await pp.fill('#nameInput', 'sam'); await pp.click('#saveProfileBtn');
-  ok((await pp.textContent('#formError')).includes('already a profile'), 'duplicate names are rejected');
-  await pp.fill('#nameInput', 'Alex <b>'); await pp.fill('#pinSet', '4321'); await pp.click('#saveProfileBtn');
-  ok((await pp.textContent('#greeting')).includes('¡Buenos días, Alex <b>!') && !(await pp.$('#greeting b')), 'second profile greeted by name (and names are escaped)');
-  ok(await pp.evaluate(() => Object.keys(state.progress).length) === 0, 'second profile starts with its own empty progress');
-  await pp.click('#knowBtn');
-  ok(await pp.evaluate(() => Object.keys(JSON.parse(localStorage.getItem('progress'))).length) === 1, "Alex's answers don't touch Sam's progress");
-  ok(await pp.evaluate(() => Object.keys(localStorage).some(k => /^p:[a-z0-9]+:progress$/.test(k))), "Alex's progress is stored under their own keys");
+  // one person per phone: no way to add or switch to another profile
+  await pp.click('#chipBtn');
+  ok(!(await pp.$('#menuSwitch')) && !(await pp.$('#menuLogout')), 'menu has no Switch profile, and no Log out without a PIN');
+  ok(await pp.evaluate(() => JSON.parse(localStorage.getItem('profiles')).list.length) === 1, 'the phone has one profile');
 
-  // PIN on the next launch
+  // add a PIN
+  await pp.click('#menuEdit');
+  await pp.fill('#pinSet', '4321'); await pp.click('#saveProfileBtn');
+  ok(!(await pp.evaluate(() => localStorage.getItem('profiles'))).includes('4321'), 'PIN is not stored as typed');
   await pp.reload(); await appReady(pp);
-  ok(await pp.isVisible('#pinInput') && !(await pp.isVisible('#main')), 'profile with a PIN asks for it on launch');
+  ok(await pp.isVisible('#pinInput') && !(await pp.isVisible('#main')), 'with a PIN, the app asks for it on launch');
+  ok(!(await pp.$('#switchBtn')), 'the PIN screen offers no other profile');
   await pp.fill('#pinInput', '1111');
   ok((await pp.textContent('#pinError')).includes('isn’t right') && !(await pp.isVisible('#main')), 'wrong PIN is refused');
   await pp.fill('#pinInput', '4321');
-  ok(await pp.isVisible('#main') && await pp.evaluate(() => Object.keys(state.progress).length) === 1, 'right PIN opens Alex with their progress');
-  ok(!(await pp.evaluate(() => localStorage.getItem('profiles'))).includes('4321'), 'PIN is not stored as typed');
+  ok(await pp.isVisible('#main') && await pp.evaluate(() => !!state.progress['food/Repetir']), 'right PIN opens the app with its progress');
 
-  // switch back to Sam: no PIN, Sam's own state
-  await pp.click('#chipBtn'); await pp.click('#menuSwitch');
-  await pp.click('.profile-pick:has-text("Sam")');
-  ok((await pp.textContent('#greeting')).includes('Sam') && await pp.evaluate(() => !!state.progress['food/Repetir']), 'switching loads the other profile');
-
-  // edit: remove nothing, rename
+  // edit: rename
   await pp.click('#chipBtn'); await pp.click('#menuEdit');
   await pp.fill('#nameInput', 'Samuel'); await pp.click('#saveProfileBtn');
   ok((await pp.textContent('#greeting')).includes('Samuel'), 'renaming updates the greeting');
   ok((await pp.textContent('#appTitle')) === 'Spanish, for Samuel', 'renaming updates the title');
 
-  // delete Alex via the forgotten-PIN route (two taps)
-  await pp.click('#chipBtn'); await pp.click('#menuSwitch');
-  await pp.click('.profile-pick:has-text("Alex")');
+  // forgot PIN: delete (two taps), then the welcome screen
+  await pp.reload(); await appReady(pp);
   await pp.click('#forgotBtn'); await pp.click('#forgotDeleteBtn');
   ok((await pp.textContent('#forgotDeleteBtn')).includes('Tap again') && await pp.isVisible('#pinInput'), 'first tap on delete only asks again');
   await pp.click('#forgotDeleteBtn');
-  ok((await pp.$$('.profile-pick[data-id]')).length === 1, 'second tap deletes the profile');
-  ok(await pp.evaluate(() => !Object.keys(localStorage).some(k => k.startsWith('p:') && localStorage.getItem(k))), "deleted profile's progress is cleared");
+  ok((await pp.textContent('#login')).includes('¿Cómo te llamas?'), 'second tap deletes the profile and shows the welcome screen');
+  ok(await pp.evaluate(() => !localStorage.getItem('progress')), "deleted profile's progress is cleared");
   await pctx.close();
+
+  { // 23b. a phone set up with several profiles before one-person-per-phone
+    const mctx = await newCtx(false);
+    await mctx.addInitScript(() => {
+      if (localStorage.getItem('profiles')) return;
+      localStorage.setItem('profiles', JSON.stringify({ list: [
+        { id: 'default', name: 'Sam', color: '#1B6B78', pin: null },
+        { id: 'alex1234', name: 'Alex', color: '#6B2545', pin: null }], active: null }));
+      localStorage.setItem('progress', JSON.stringify({ 'food/Repetir': { box: 2, due: 9e12 } }));
+      localStorage.setItem('p:alex1234:progress', JSON.stringify({ 'food/Pica un poco': { box: 1, due: 9e12 } }));
+    });
+    const pm = await mctx.newPage();
+    pm.on('pageerror', e => { console.log('PAGEERROR-PM', e.message); fails++; });
+    await pm.goto(URL); await appReady(pm);
+    ok((await pm.textContent('#login')).includes('one person per phone') && (await pm.$$('.profile-pick[data-id]')).length === 2 && !(await pm.$('#addProfileBtn')),
+      'old shared phone: lists its profiles, explains one person per phone, no Add a profile');
+    await pm.click('.profile-pick:has-text("Alex")'); await appReady(pm);
+    ok(await pm.evaluate(() => !!state.progress['food/Pica un poco'] && !state.progress['food/Repetir']), 'each old profile still opens its own progress');
+    await pm.click('#chipBtn');
+    ok(await pm.isVisible('#menuSwitch'), 'Switch profile stays while there are several');
+    await pm.click('#menuEdit'); await pm.click('#deleteBtn'); await pm.click('#deleteBtn');
+    await appReady(pm);
+    ok(await pm.isVisible('#main') && (await pm.textContent('#greeting')).includes('Sam') && await pm.evaluate(() => !localStorage.getItem('p:alex1234:progress')),
+      'deleting down to one profile opens the one left, and the deleted progress is gone');
+    await pm.click('#chipBtn');
+    ok(!(await pm.$('#menuSwitch')), 'with one profile left, Switch profile goes away');
+    await mctx.close();
+  }
 
   // 24. quiz question types
   const qctx = await newCtx();
@@ -623,22 +640,23 @@ const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++
   ok(hardCount === 1, 'right answers on Difícil count toward "Modo difícil"');
   await dctx.close();
 
-  // 26. log out
+  // 26. log out (only with a PIN)
   const lctx = await newCtx(); const pl = await lctx.newPage();
   pl.on('pageerror', e => { console.log('PAGEERROR-L', e.message); fails++; });
   await pl.goto(URL);
   await pl.click('#knowBtn');
+  await pl.click('#chipBtn'); await pl.click('#menuEdit');
+  await pl.fill('#pinSet', '2468'); await pl.click('#saveProfileBtn');
   await pl.click('#chipBtn');
-  ok(await pl.isVisible('#menuLogout'), 'profile menu has Log out');
+  ok(await pl.isVisible('#menuLogout'), 'profile menu has Log out once a PIN is set');
   await pl.click('#menuLogout');
-  ok(await pl.isVisible('#login') && !(await pl.isVisible('#main')) && (await pl.textContent('#login')).includes('¿Quién va a practicar?'), 'log out shows who-is-practising screen');
+  ok(await pl.isVisible('#pinInput') && !(await pl.isVisible('#main')), 'log out shows the PIN screen');
   ok(await pl.evaluate(() => JSON.parse(localStorage.getItem('profiles')).active) === null, 'log out forgets the signed-in profile');
   await pl.reload(); await appReady(pl);
-  await pl.waitForSelector('.profile-pick');
-  ok(!(await pl.isVisible('#main')), 'after logging out, the next launch does not sign straight in');
-  await pl.click('.profile-pick:has-text("Sam")');
+  ok(await pl.isVisible('#pinInput') && !(await pl.isVisible('#main')), 'after logging out, the next launch asks for the PIN');
+  await pl.fill('#pinInput', '2468');
   await pl.waitForFunction(() => Profiles.current() && Object.keys(state.progress).length === 1);
-  ok(await pl.isVisible('#main') && await pl.evaluate(() => Object.keys(state.progress).length) === 1, 'signing back in keeps the progress');
+  ok(await pl.isVisible('#main'), 'signing back in keeps the progress');
   await lctx.close();
 
   // 27. works offline (served as the website, like GitHub Pages)
@@ -717,9 +735,11 @@ const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++
   await pv.reload(); await appReady(pv);
   await pv.waitForFunction(es => Voice.has(es), firstEs);
   ok(true, 'recordings survive a restart');
-  // each profile has its own recordings
+  // each profile (on a phone set up with several) has its own recordings
+  await pv.evaluate(() => { const d = JSON.parse(localStorage.getItem('profiles')); d.list.push({ id: 'alex1234', name: 'Alex', color: '#6B2545', pin: null }); localStorage.setItem('profiles', JSON.stringify(d)); });
+  await pv.reload(); await appReady(pv);
   await pv.evaluate(() => Profiles.logout());
-  await pv.click('#addProfileBtn'); await pv.fill('#nameInput', 'Alex'); await pv.click('#saveProfileBtn');
+  await pv.click('.profile-pick:has-text("Alex")');
   await appReady(pv); await pv.evaluate(() => Voice.ready());
   ok(!(await pv.evaluate(es => Voice.has(es), firstEs)) && await pv.evaluate(() => Voice.count() === 0), "another profile doesn't get Sam's recordings");
   await pv.evaluate(es => speak(es), firstEs); await pv.waitForTimeout(50);
@@ -783,8 +803,10 @@ const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++
     ok(await pm.evaluate(() => myPhrases.length === 1 && 'mine' in DECKS), 'My phrases are saved');
     // another profile has its own list; import brings phrases across
     const code = await pm.evaluate(() => encodeProgressBlob({ progress: { 'mine/¿Me pasas el control?': { box: 2, due: 9e12, seen: 5 } }, custom: myPhrases }));
+    await pm.evaluate(() => { const d = JSON.parse(localStorage.getItem('profiles')); d.list.push({ id: 'alex1234', name: 'Alex', color: '#6B2545', pin: null }); localStorage.setItem('profiles', JSON.stringify(d)); });
+    await pm.reload(); await appReady(pm);
     await pm.evaluate(() => Profiles.logout());
-    await pm.click('#addProfileBtn'); await pm.fill('#nameInput', 'Alex'); await pm.click('#saveProfileBtn');
+    await pm.click('.profile-pick:has-text("Alex")'); await appReady(pm);
     ok(await pm.evaluate(() => myPhrases.length === 0 && !('mine' in DECKS)), "another profile doesn't see Sam's phrases");
     await pm.evaluate(code => applyImport(code), code);
     ok(await pm.evaluate(() => myPhrases.length === 1 && state.progress['mine/¿Me pasas el control?'].box === 2), 'import brings My phrases and their progress');
