@@ -717,6 +717,17 @@ const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++
   await pv.reload(); await appReady(pv);
   await pv.waitForFunction(es => Voice.has(es), firstEs);
   ok(true, 'recordings survive a restart');
+  // each profile has its own recordings
+  await pv.evaluate(() => Profiles.logout());
+  await pv.click('#addProfileBtn'); await pv.fill('#nameInput', 'Alex'); await pv.click('#saveProfileBtn');
+  await appReady(pv); await pv.evaluate(() => Voice.ready());
+  ok(!(await pv.evaluate(es => Voice.has(es), firstEs)) && await pv.evaluate(() => Voice.count() === 0), "another profile doesn't get Sam's recordings");
+  await pv.evaluate(es => speak(es), firstEs); await pv.waitForTimeout(50);
+  ok(await pv.evaluate(es => __spoken.includes(es), firstEs), "Alex hears the phone voice, not Sam's recording");
+  await pv.evaluate(() => Profiles.logout());
+  await pv.click('.profile-pick:has-text("Sam")');
+  await appReady(pv); await pv.evaluate(() => Voice.ready());
+  ok(await pv.evaluate(es => Voice.has(es), firstEs), 'Sam still has their recording after switching back');
   await pv.click('#chipBtn'); await pv.click('#menuVoice');
   await pv.click('.voice-row.has .voice-btn.del'); await pv.click('.voice-row.has .voice-btn.del');
   await pv.waitForFunction(() => !document.querySelector('.voice-row.has'));

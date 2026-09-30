@@ -200,6 +200,7 @@ const Profiles = (function () {
   async function remove(p) {
     Storage.useProfile(p.id);
     await Promise.all(PROFILE_KEYS.map(k => Storage.set(k, '')));
+    if (typeof Voice !== 'undefined') Voice.removeProfile(p.id); // their recordings too
     data.list = data.list.filter(o => o !== p);
     if (data.active === p.id) data.active = null;
     save();
@@ -212,6 +213,7 @@ const Profiles = (function () {
     save();
     entered = p;
     Storage.useProfile(p.id);
+    if (typeof Voice !== 'undefined') Voice.useProfile(p.id); // loads in the background
     $('login').hidden = true;
     $('login').innerHTML = '';
     $('main').hidden = false;

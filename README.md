@@ -82,7 +82,7 @@ quizzes as everything else, and travel with Export/Import.
 
 - **Record phrases in your voice** (in the menu under your name): record a
   phrase and every speaker button plays your recording instead of the
-  phone's voice. Recordings stay on the phone (shared by all its profiles).
+  phone's voice. Recordings stay on the phone, and each profile has its own.
 - **Share this phrase** on the back of a flashcard sends it through the
   phone's share sheet (Messages, WhatsApp, …).
 
