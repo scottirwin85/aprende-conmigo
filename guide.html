@@ -242,5 +242,12 @@ dd{ margin:4px 0 0; }
 
   <p class="foot">¡Buena suerte! · Good luck! — <a href="https://scottirwin85.github.io/aprende-conmigo/">Open Aprende Conmigo</a></p>
 </div>
+<script>
+  // The links use the app's full address so they work when this guide is shared or saved.
+  // Opened from a web server (the app's own site, or a copy of it), point them at the app next door.
+  if (/^https?:$/.test(location.protocol)) {
+    document.querySelectorAll('a[href="https://scottirwin85.github.io/aprende-conmigo/"]').forEach(a => { a.href = './'; });
+  }
+</script>
 </body>
 </html>
